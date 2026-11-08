@@ -1,5 +1,6 @@
 /* 预览和转化共用工作区；模式只改变内容栏数、文档类型和菜单，窗口交接保持一致。 */
 #include "ConversionWindow.h"
+#include "components/window/WorkspaceTitleBar.h"
 #include "components/ConvertButton.h"
 #include "components/functionBar/FileMenu.h"
 #include "components/functionBar/FunctionBar.h"
@@ -52,6 +53,8 @@ ConversionWindow::ConversionWindow(const QString &mode, const QString &kind, QWi
       status_(new QLabel(this))
 {
     const bool conversion = mode_ == "convert";
+    if (conversion)
+        setWindowFlag(Qt::FramelessWindowHint);
     if (editor_)
         result_ = new DocumentView(livePreview_ = new CefDocumentPreviewWidget(
                                        CefDocumentPreviewWidget::Format::MarkdownLive),
@@ -87,6 +90,18 @@ ConversionWindow::ConversionWindow(const QString &mode, const QString &kind, QWi
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
+    if (conversion)
+    {
+        auto *titleBar = new WorkspaceTitleBar(this);
+        layout->addWidget(titleBar);
+#ifdef Q_OS_OPENHARMONY
+        // 自定义关闭键直接发起首页交接，不经过 QPA 的原生关窗路径。
+        connect(titleBar, &WorkspaceTitleBar::closeRequested, this,
+                [] { QtBridge::instance().request("close"); });
+#else
+        connect(titleBar, &WorkspaceTitleBar::closeRequested, this, &QWidget::close);
+#endif
+    }
     layout->addWidget(functionBar_);
     splitter_->addWidget(source_);
     if (result_)

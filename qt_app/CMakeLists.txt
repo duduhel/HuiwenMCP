@@ -9,6 +9,8 @@ find_package(Qt5 5.15 REQUIRED COMPONENTS Core Gui Widgets Concurrent)
 # 鸿蒙由 QPA 加载共享库；桌面系统使用普通可执行入口。
 set(workspace_sources
     main.cpp
+    ../entry/src/main/cpp/cust/framelesswidget.cpp
+    src/components/window/WorkspaceTitleBar.cpp
     resources/file-icons.qrc
     resources/markdown.qrc
     resources/word.qrc

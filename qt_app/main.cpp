@@ -1,4 +1,4 @@
-/* Qt Widgets 工作区入口：默认最大化并保留系统边框，窗口实际曝光后通知鸿蒙关闭原首页。 */
+/* Qt Widgets 工作区入口：默认最大化，转换模式使用 cust 标题栏，预览保留系统边框，窗口实际曝光后通知鸿蒙关闭原首页。 */
 #include "workspace/ConversionWindow.h"
 #include <QApplication>
 #include <QIcon>
