@@ -5,7 +5,6 @@
 #include <QDebug>
 #include <exception>
 #ifdef Q_OS_OPENHARMONY
-#include <QJsonDocument>
 #include <QJsonObject>
 #include "platform/harmony/qt_bridge.h"
 #else
@@ -22,34 +21,38 @@
 SandboxService::SandboxService(QObject *parent) : QObject(parent)
 {
 #ifdef Q_OS_OPENHARMONY
-    connect(&QtBridge::instance(), &QtBridge::replyReceived, this,
-            [this](const QString &json)
+    const auto receiveDocument = [this](const QJsonObject &result, bool restore)
+    {
+        if (!result.value("inputPath").toString().isEmpty())
+        {
+            const DocumentItem document{result.value("kind").toString(),
+                                        result.value("name").toString(),
+                                        result.value("inputPath").toString(),
+                                        result.value("outputPath").toString(),
+                                        result.value("taskPath").toString(),
+                                        result.value("mode").toString(),
+                                        static_cast<qint64>(result.value("lastUsedAt").toDouble()),
+                                        result.value("openPath").toString()};
+            if (restore)
+                emit restorationRequested(document);
+            else
+                emit documentSelected(document);
+        }
+        if (!restore)
+            emit selectionFinished();
+        if (!result.value("error").toString().isEmpty())
+            emit failed(result.value("error").toString());
+    };
+    auto &bridge = QtBridge::instance();
+    connect(&bridge, &QtBridge::documentSelectionCompleted, this,
+            [receiveDocument](const QJsonObject &result) { receiveDocument(result, false); });
+    connect(&bridge, &QtBridge::workspaceRestorationRequested, this,
+            [receiveDocument](const QJsonObject &result) { receiveDocument(result, true); });
+    connect(&bridge, &QtBridge::directoryOpenCompleted, this,
+            [this](const QString &error)
             {
-                const auto result = QJsonDocument::fromJson(json.toUtf8()).object();
-                const auto action = result.value("action").toString();
-                if (action == "pick" || action == "restore")
-                {
-                    if (!result.value("inputPath").toString().isEmpty())
-                    {
-                        const DocumentItem document{
-                            result.value("kind").toString(),
-                            result.value("name").toString(),
-                            result.value("inputPath").toString(),
-                            result.value("outputPath").toString(),
-                            result.value("taskPath").toString(),
-                            result.value("mode").toString(),
-                            static_cast<qint64>(result.value("lastUsedAt").toDouble()),
-                            result.value("openPath").toString()};
-                        if (action == "restore")
-                            emit restorationRequested(document);
-                        else
-                            emit documentSelected(document);
-                    }
-                    if (action == "pick")
-                        emit selectionFinished();
-                }
-                if (!result.value("error").toString().isEmpty())
-                    emit failed(result.value("error").toString());
+                if (!error.isEmpty())
+                    emit failed(error);
             });
 #endif
 }
@@ -57,7 +60,7 @@ SandboxService::SandboxService(QObject *parent) : QObject(parent)
 void SandboxService::selectDocument(const QString &kind, const QString &mode)
 {
 #ifdef Q_OS_OPENHARMONY
-    if (!QtBridge::instance().request("pick", QJsonObject{{"kind", kind}, {"mode", mode}}))
+    if (!QtBridge::instance().requestDocumentSelection(kind, mode))
     {
         emit selectionFinished();
         emit failed(QStringLiteral("鸿蒙文件选择接口尚未就绪"));
@@ -137,10 +140,7 @@ void SandboxService::finishRestoration(const DocumentItem &document, const QStri
         }
     }
 #ifdef Q_OS_OPENHARMONY
-    const QString reply = QString::fromUtf8(
-        QJsonDocument(QJsonObject{{"taskPath", document.taskPath}, {"error", message}})
-            .toJson(QJsonDocument::Compact));
-    if (!QtBridge::instance().request("restoreResult", reply))
+    if (!QtBridge::instance().notifyWorkspaceRestoreResult(document.taskPath, message))
         message = QStringLiteral("无法通知首页任务恢复结果");
 #endif
     if (!message.isEmpty())
@@ -151,7 +151,7 @@ void SandboxService::openResultLocation(const QString &path)
 {
 #ifdef Q_OS_OPENHARMONY
     qInfo().noquote() << "HUIWEN_OUTPUT stage=locate_start platform=harmony path=" << path;
-    if (!QtBridge::instance().request("open", path))
+    if (!QtBridge::instance().requestOpenOutputLocation(path))
     {
         qWarning().noquote() << "HUIWEN_OUTPUT stage=locate_failed reason=bridge_unavailable";
         emit failed(QStringLiteral("鸿蒙输出位置接口尚未就绪"));
@@ -184,7 +184,7 @@ void SandboxService::openTaskDirectory(const DocumentItem &document, bool output
                              : document.taskPath + (output ? "/output" : "/input");
 #ifdef Q_OS_OPENHARMONY
     // ArkTS 使用自己的 filesDir 再经 NAPI 校验目录归属后调用系统文件管理器。
-    if (!QtBridge::instance().request("openDirectory", path))
+    if (!QtBridge::instance().requestOpenTaskDirectory(path))
         emit failed(QStringLiteral("鸿蒙任务目录接口尚未就绪"));
 #else
     try

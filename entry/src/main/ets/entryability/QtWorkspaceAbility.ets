@@ -10,23 +10,7 @@ import { DocumentKind, DocumentMode, pickDocumentToSandbox } from '../utils/Docu
 import { CefWorkspaceProxy } from '../utils/CefPlatform';
 import { readSettings } from '../services/settings/AppSettings';
 import { ensureWorkspaceAccess } from '../services/settings/WorkspaceStorage';
-
-interface WorkspaceEvent {
-  action: string;
-  path: string;
-  kind?: string;
-  mode?: string;
-}
-
-interface WorkspaceReply extends HarmonySandboxDocument {
-  action: string;
-  error: string;
-}
-
-interface WorkspaceRestoreResult {
-  taskPath: string;
-  error: string;
-}
+import { QtSessionBridge } from '../bridge/QtSessionBridge';
 
 export default class QtWorkspaceAbility extends UIAbility {
   // QPA 读取这两个字段，加载应用共享库并调用其中的 main()。
@@ -42,6 +26,7 @@ export default class QtWorkspaceAbility extends UIAbility {
   private destroyed: boolean = false;
   private closing: boolean = false;
   private exitOnClose: boolean = false;
+  private session: QtSessionBridge = new QtSessionBridge();
   private cefProxy: CefWorkspaceProxy | undefined = undefined;
   // 首页确认显示后才让 Qt 释放浏览器；只消费本次关闭的一次回执。
   private homeReady = (error: string = ''): void => {
@@ -52,12 +37,12 @@ export default class QtWorkspaceAbility extends UIAbility {
     if (error !== '') {
       this.closing = false;
       if (this.mode === DocumentMode.Edit) {
-        nativeBridge.workspaceReply(JSON.stringify({ action: 'closeAborted' }));
+        this.session.cancelWorkspaceClose();
       }
       hilog.error(0xFF00, 'QtWorkspace', 'HUIWEN_HOME_FAILED: %{public}s', error);
       return;
     }
-    nativeBridge.workspaceReply(JSON.stringify({ action: 'close' }));
+    this.session.closeQtWorkspace();
   };
 
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
@@ -84,7 +69,7 @@ export default class QtWorkspaceAbility extends UIAbility {
     this.restoring = true;
     try {
       // 只传任务标识，实际文件路径由 C++ 重新校验；读取阶段不更新时间。
-      const document: HarmonySandboxDocument = await nativeBridge.harmonyLoadTask(
+      const document: HarmonySandboxDocument = await nativeBridge.sandboxLoadWorkspace(
         await ensureWorkspaceAccess(this.context), taskPath);
       if (this.destroyed || this.closing || this.pendingTask !== taskPath) {
         return;
@@ -92,12 +77,7 @@ export default class QtWorkspaceAbility extends UIAbility {
       if (document.mode !== this.mode || document.kind !== this.kind) {
         throw new Error('任务类型与当前工作区不一致');
       }
-      const reply: WorkspaceReply = {
-        action: 'restore', name: document.name, kind: document.kind, mode: document.mode,
-        taskPath: document.taskPath, inputPath: document.inputPath, outputPath: document.outputPath,
-        openPath: document.openPath, lastUsedAt: document.lastUsedAt, error: ''
-      };
-      nativeBridge.workspaceReply(JSON.stringify(reply));
+      this.session.applyRestoredWorkspace(document);
     } catch (error) {
       if (!this.destroyed && !this.closing && this.pendingTask === taskPath) {
         this.pendingTask = '';
@@ -105,7 +85,7 @@ export default class QtWorkspaceAbility extends UIAbility {
         const message: string = (error as Error).message;
         hilog.error(0xFF00, 'QtWorkspace', 'HUIWEN_QT_RESTORE_FAILED: %{public}s', message);
         // 错误只交给当前 Qt 页面，不带回首页。
-        nativeBridge.workspaceReply(JSON.stringify({ action: 'restore', error: message }));
+        this.session.applyRestoredWorkspace(null, message);
       }
     }
   }
@@ -126,11 +106,16 @@ export default class QtWorkspaceAbility extends UIAbility {
       });
       // 先挂接 QPA 宿主，再通知 Qt 创建对应的新窗体。
       qpa.startQtApplication(this);
-      nativeBridge.registerWorkspace((json: string) => {
-        this.handleWorkspaceEvent(json).catch((error: Error) => {
-          hilog.error(0xFF00, 'QtWorkspace', 'HUIWEN_QT_EVENT_FAILED: %{public}s', error.message);
-        });
-      }, this.mode, this.kind);
+      this.session.attachWorkspace(this.mode, this.kind, {
+        onReady: (): Promise<void> => this.workspaceShown(),
+        onReturnHome: (): Promise<void> => this.returnHome(),
+        onCloseApproval: (approved: boolean): Promise<void> => this.closeApprovalReceived(approved),
+        onClosed: (): Promise<void> => this.workspaceClosed(),
+        onRestoreResult: (taskPath: string, error: string): void => this.restoreCompleted(taskPath, error),
+        onSelectDocument: (kind: string, mode: string): Promise<void> => this.selectDocument(kind, mode),
+        onOpenOutputLocation: (path: string): Promise<void> => this.openRequestedLocation(path, false),
+        onOpenTaskDirectory: (path: string): Promise<void> => this.openRequestedLocation(path, true)
+      });
       hilog.info(0xFF00, 'QtWorkspace', 'HUIWEN_QT_START');
     } catch (error) {
       const message = (error as Error).message;
@@ -141,105 +126,83 @@ export default class QtWorkspaceAbility extends UIAbility {
     }
   }
 
-  private async handleWorkspaceEvent(json: string): Promise<void> {
-    const event = JSON.parse(json) as WorkspaceEvent;
-    if (this.destroyed) {
-      return;
+  private async workspaceShown(): Promise<void> {
+    if (this.destroyed || this.closing) { return; }
+    this.workspaceReady = true;
+    hilog.info(0xFF00, 'QtWorkspace', 'HUIWEN_QT_READY');
+    // 窗口已显示即可结束原首页，文件恢复不参与窗口交接。
+    this.context.getApplicationContext().eventHub.emit('huiwen.workspace.ready');
+    await this.deliverPendingTask();
+  }
+
+  private async closeApprovalReceived(approved: boolean): Promise<void> {
+    this.closeChecking = false;
+    if (approved) { await this.returnHome(true); }
+  }
+
+  private async workspaceClosed(): Promise<void> {
+    if (this.destroyed || !this.closing) { return; }
+    if (this.exitOnClose) {
+      await this.context.getApplicationContext().killAllProcesses(true);
+    } else {
+      await this.context.terminateSelf();
     }
-    if (event.action === 'close') {
-      await this.returnHome();
-      return;
+  }
+
+  private restoreCompleted(taskPath: string, error: string): void {
+    if (this.destroyed || this.closing || !this.restoring || taskPath !== this.pendingTask) { return; }
+    this.pendingTask = '';
+    this.restoring = false;
+    if (error !== '') {
+      hilog.error(0xFF00, 'QtWorkspace', 'HUIWEN_QT_RESTORE_FAILED: %{public}s', error);
+    } else {
+      hilog.info(0xFF00, 'QtWorkspace', 'HUIWEN_QT_RESTORE_OK');
     }
-    if (event.action === 'closeApproved') {
-      this.closeChecking = false;
-      await this.returnHome(true);
-      return;
-    }
-    if (event.action === 'closeCancelled') {
-      this.closeChecking = false;
-      return;
-    }
-    if (event.action === 'closed' && this.closing) {
-      if (this.exitOnClose) {
-        // 用户选择退出应用：CEF 已释放，结束本应用进程及任务栈，避免常驻 Qt 循环残留。
-        await this.context.getApplicationContext().killAllProcesses(true);
-      } else {
-        await this.context.terminateSelf();
-      }
-      return;
-    }
-    if (this.closing) {
-      return;
-    }
-    if (event.action === 'ready') {
-      this.workspaceReady = true;
-      hilog.info(0xFF00, 'QtWorkspace', 'HUIWEN_QT_READY');
-      // 窗口已显示即可结束原首页，文件恢复不参与窗口交接。
-      this.context.getApplicationContext().eventHub.emit('huiwen.workspace.ready');
-      await this.deliverPendingTask();
-      return;
-    }
-    if (event.action === 'restoreResult') {
-      const result = JSON.parse(event.path) as WorkspaceRestoreResult;
-      if (!this.restoring || result.taskPath !== this.pendingTask) {
-        return;
-      }
-      this.pendingTask = '';
-      this.restoring = false;
-      if (result.error !== '') {
-        hilog.error(0xFF00, 'QtWorkspace', 'HUIWEN_QT_RESTORE_FAILED: %{public}s', result.error);
-      } else {
-        hilog.info(0xFF00, 'QtWorkspace', 'HUIWEN_QT_RESTORE_OK');
-      }
-      return;
-    }
-    const reply: WorkspaceReply = {
-      action: event.action, name: '', kind: '', mode: '', taskPath: '', inputPath: '',
-      outputPath: '', openPath: '', lastUsedAt: 0, error: ''
-    };
-    if (event.action === 'pick' && this.pickerBusy) {
-      return;
-    }
+  }
+
+  private async selectDocument(requestKind: string, requestMode: string): Promise<void> {
+    if (this.destroyed || this.closing || this.pickerBusy) { return; }
+    this.pickerBusy = true;
+    let document: HarmonySandboxDocument | null = null;
+    let message = '';
     try {
-      if (event.action === 'pick') {
-        this.pickerBusy = true;
-        if (event.mode !== this.mode || event.kind !== this.kind) {
-          throw new Error('选取请求与当前工作区类型不一致');
-        }
-        const kind = this.kind === DocumentKind.Word ? DocumentKind.Word :
-          this.kind === DocumentKind.Markdown ? DocumentKind.Markdown : DocumentKind.PDF;
-        const mode = this.mode === DocumentMode.Preview ? DocumentMode.Preview :
-          this.mode === DocumentMode.Edit ? DocumentMode.Edit : DocumentMode.Convert;
-        const document = await pickDocumentToSandbox(this.context, kind, mode);
-        if (document !== null) {
-          reply.name = document.name;
-          reply.inputPath = document.inputPath;
-          reply.outputPath = document.outputPath;
-          reply.kind = document.kind;
-          reply.mode = document.mode;
-          reply.taskPath = document.taskPath;
-          reply.openPath = document.openPath;
-          reply.lastUsedAt = document.lastUsedAt;
-          hilog.info(0xFF00, 'QtWorkspace', 'HUIWEN_QT_PICK_OK');
-        }
-      } else if (event.action === 'open') {
-        await this.openOutputLocation(event.path);
-      } else if (event.action === 'openDirectory') {
-        // 顶部文件菜单只打开当前任务目录，路径仍由通用 C++ 沙箱规则校验。
-        const directory: string = nativeBridge.harmonyValidateTaskDirectory(
-          await ensureWorkspaceAccess(this.context), event.path);
+      if (requestMode !== this.mode || requestKind !== this.kind) {
+        throw new Error('选取请求与当前工作区类型不一致');
+      }
+      const kind = this.kind === DocumentKind.Word ? DocumentKind.Word :
+        this.kind === DocumentKind.Markdown ? DocumentKind.Markdown : DocumentKind.PDF;
+      const mode = this.mode === DocumentMode.Preview ? DocumentMode.Preview :
+        this.mode === DocumentMode.Edit ? DocumentMode.Edit : DocumentMode.Convert;
+      document = await pickDocumentToSandbox(this.context, kind, mode);
+      if (document !== null) { hilog.info(0xFF00, 'QtWorkspace', 'HUIWEN_QT_PICK_OK'); }
+    } catch (error) {
+      message = (error as Error).message;
+      hilog.error(0xFF00, 'QtWorkspace', 'HUIWEN_QT_PICK_FAILED: %{public}s', message);
+    } finally {
+      this.pickerBusy = false;
+      if (!this.destroyed && !this.closing) { this.session.completeDocumentSelection(document, message); }
+    }
+  }
+
+  private async openRequestedLocation(path: string, taskDirectory: boolean): Promise<void> {
+    if (this.destroyed || this.closing) { return; }
+    let message = '';
+    try {
+      if (taskDirectory) {
+        const directory = nativeBridge.sandboxValidateTaskDirectory(await ensureWorkspaceAccess(this.context), path);
         await this.openFileManager(directory);
+      } else {
+        await this.openOutputLocation(path);
       }
     } catch (error) {
-      reply.error = (error as Error).message;
-      hilog.error(0xFF00, 'QtWorkspace', 'HUIWEN_QT_%{public}s_FAILED: %{public}s', event.action, reply.error);
-    } finally {
-      if (event.action === 'pick') {
-        this.pickerBusy = false;
-      }
-      if (!this.destroyed && !this.closing) {
-        nativeBridge.workspaceReply(JSON.stringify(reply));
-      }
+      message = (error as Error).message;
+      hilog.error(0xFF00, 'QtWorkspace', 'HUIWEN_QT_OPEN_FAILED: %{public}s', message);
+    }
+    if (this.destroyed || this.closing) { return; }
+    if (taskDirectory) {
+      this.session.completeTaskDirectoryOpen(message);
+    } else {
+      this.session.completeOutputLocationOpen(message);
     }
   }
 
@@ -252,7 +215,7 @@ export default class QtWorkspaceAbility extends UIAbility {
         return;
       }
       this.closeChecking = true;
-      nativeBridge.workspaceReply(JSON.stringify({ action: 'confirmClose' }));
+      this.session.requestWorkspaceCloseConfirmation();
       return;
     }
     this.closing = true;
@@ -262,7 +225,7 @@ export default class QtWorkspaceAbility extends UIAbility {
     this.exitOnClose = readSettings(this.context).closeAction === 'exit';
     if (this.exitOnClose) {
       // 沿用 Qt/CEF 的释放回执，收到 closed 后才退出应用。
-      nativeBridge.workspaceReply(JSON.stringify({ action: 'close' }));
+      this.session.closeQtWorkspace();
       return;
     }
     this.context.getApplicationContext().eventHub.on('huiwen.home.ready', this.homeReady);
@@ -274,7 +237,7 @@ export default class QtWorkspaceAbility extends UIAbility {
   }
 
   private async openOutputLocation(path: string): Promise<void> {
-    const outputPath: string = nativeBridge.harmonyValidateOutput(
+    const outputPath: string = nativeBridge.sandboxValidateOutputFile(
       await ensureWorkspaceAccess(this.context), path);
     await this.openFileManager(outputPath);
   }
@@ -305,7 +268,7 @@ export default class QtWorkspaceAbility extends UIAbility {
     this.context.getApplicationContext().eventHub.off('huiwen.home.ready', this.homeReady);
     this.pendingTask = '';
     // QPA 在本方法返回后标记宿主已销毁；下一轮事件再通知 Qt 释放窗体，避免抢先删除宿主。
-    setTimeout(() => nativeBridge.clearWorkspace(), 0);
+    setTimeout(() => this.session.detach(), 0);
     this.cefProxy?.dispose();
     this.cefProxy = undefined;
     // 首页已经显示，在工作区实际销毁后重读最近列表，不修改沙箱时间规则。
@@ -321,15 +284,13 @@ export default class QtWorkspaceAbility extends UIAbility {
       this.context.getApplicationContext().eventHub.emit('huiwen.workspace.ready');
     }
     if (this.restoring || this.pickerBusy) {
-      nativeBridge.workspaceReply(JSON.stringify({ action: 'restore', error: '工作区正在处理文件，请稍后重试' }));
+      this.session.applyRestoredWorkspace(null, '工作区正在处理文件，请稍后重试');
       return;
     }
     // 模式在本次窗口生命周期内固定；跨模式仍通过关闭回首页后再次打开，避免抢先释放 CEF。
     if (String(want.parameters?.huiwenMode ?? DocumentMode.Convert) !== this.mode ||
       String(want.parameters?.huiwenKind ?? DocumentKind.PDF) !== this.kind) {
-      nativeBridge.workspaceReply(JSON.stringify({
-        action: 'restore', error: '请先关闭当前工作区，再打开其他模式或文档类型'
-      }));
+      this.session.applyRestoredWorkspace(null, '请先关闭当前工作区，再打开其他模式或文档类型');
       return;
     }
     qpa.handleOnNewWant(want, launchParam);

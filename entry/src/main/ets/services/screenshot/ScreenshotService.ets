@@ -207,12 +207,12 @@ export async function startScreenshot(hideApplication: boolean = false): Promise
     if (hideApplication) {
       await minimizeBeforeCapture(windowStage.getMainWindowSync());
     }
-    await nativeBridge.prepareScreenshot();
+    await nativeBridge.screenshotPrepareCapture();
     await context.startAbility({ bundleName: 'cn.com.HuiWenMCP', abilityName: 'QtScreenshotAbility' }, {
       windowMode: AbilityConstant.WindowMode.WINDOW_MODE_FULLSCREEN, withAnimation: false
     });
   } catch (error) {
-    nativeBridge.clearPreparedScreenshot();
+    nativeBridge.screenshotReleaseCapture();
     finishScreenshot();
     throw new Error((error as Error).message);
   }

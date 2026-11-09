@@ -51,11 +51,7 @@ int main(int argc, char *argv[])
                     false,
                     [id](bool ok, const QString &path, const QString &error, bool cached) {
                         if (id == QtBridge::workspaceId())
-                            QtBridge::instance().request("screenshotFinished",
-                                                         QJsonObject{{"path", path},
-                                                                     {"error", error},
-                                                                     {"ok", ok},
-                                                                     {"cached", cached}});
+                            QtBridge::instance().notifyScreenshotFinished(ok, path, error, cached);
                     },
                     options.value("screenshotCacheRoot").toString());
                 return;
@@ -72,14 +68,20 @@ int main(int argc, char *argv[])
                      {
                          if (window && workspaceId == QtBridge::workspaceId() &&
                              window->windowHandle() && window->windowHandle()->isExposed() &&
-                             bridge.request("ready"))
+                             bridge.notifyWorkspaceReady())
                              readyTimer.stop();
                      });
     QObject::connect(&bridge, &QtBridge::closeApprovalRequested, &app, [&] {
         if (window)
-            window->requestClosePermission([&bridge](bool ok) {
-                bridge.request(ok ? QStringLiteral("closeApproved") : QStringLiteral("closeCancelled"));
-            });
+        {
+            const auto id = workspaceId;
+            window->requestClosePermission(
+                [&bridge, id](bool ok)
+                {
+                    if (id == QtBridge::workspaceId())
+                        bridge.notifyWorkspaceCloseApproval(ok);
+                });
+        }
     });
     QObject::connect(&bridge, &QtBridge::closeRequested, &app,
                      [&]
@@ -93,7 +95,7 @@ int main(int argc, char *argv[])
                              [closingWindow, id]
                              {
                                  if (closingWindow && id == QtBridge::workspaceId())
-                                     QtBridge::instance().request("closed");
+                                     QtBridge::instance().notifyWorkspaceClosed();
                              });
                      });
     synchronizeWindow();

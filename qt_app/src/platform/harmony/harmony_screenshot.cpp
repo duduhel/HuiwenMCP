@@ -21,6 +21,7 @@ struct CaptureWork
     std::string error;
 };
 
+// NAPI 工作线程抓取存活屏幕的 PixelMap；只写任务数据，底图由共享指针管理。
 void CaptureScreens(napi_env, void *data)
 {
     auto &task = *static_cast<CaptureWork *>(data);
@@ -57,6 +58,7 @@ void CaptureScreens(napi_env, void *data)
     }
 }
 
+// 回到 ArkTS 线程：成功发布底图并兑现 Promise，失败拒绝 Promise，最后回收异步任务。
 void CompleteCapture(napi_env env, napi_status status, void *data)
 {
     std::unique_ptr<CaptureWork> task(static_cast<CaptureWork *>(data));
@@ -81,6 +83,8 @@ void CompleteCapture(napi_env env, napi_status status, void *data)
     napi_delete_async_work(env, task->work);
 }
 
+// screenshotPrepareCapture：ArkTS 已获得截图权限后调用，返回
+// Promise<void>；成功后才可启动截图宿主。
 napi_value PrepareScreenshot(napi_env env, napi_callback_info)
 {
     // 只保留本次底图；耗时系统抓屏不占用 ArkTS UI 线程。
@@ -114,6 +118,7 @@ napi_value PrepareScreenshot(napi_env env, napi_callback_info)
     return promise;
 }
 
+// screenshotReleaseCapture：ArkTS 在失败或销毁时同步释放未交给 Qt 的底图，返回 undefined。
 napi_value ClearPreparedScreenshot(napi_env env, napi_callback_info)
 {
     TakePreparedScreenshots();
@@ -123,6 +128,7 @@ napi_value ClearPreparedScreenshot(napi_env env, napi_callback_info)
 }
 } // namespace
 
+// Native → Qt 的缓存交接：锁内取走全部底图，缓存立即清空；调用方接管返回值的生命周期。
 std::vector<PreparedScreenshot> TakePreparedScreenshots()
 {
     std::lock_guard<std::mutex> lock(snapshotMutex);
@@ -131,13 +137,16 @@ std::vector<PreparedScreenshot> TakePreparedScreenshots()
     return frames;
 }
 
+// 导出起窗前抓屏和释放接口，与 Qt 会话桥共用同一个 Native 模块。
 void InitHarmonyScreenshot(napi_env env, napi_value exports)
 {
     napi_property_descriptor properties[] = {
-        {"prepareScreenshot", nullptr, PrepareScreenshot, nullptr, nullptr, nullptr, napi_default,
-         nullptr},
-        {"clearPreparedScreenshot", nullptr, ClearPreparedScreenshot, nullptr, nullptr, nullptr,
+        {"screenshotPrepareCapture", nullptr, PrepareScreenshot, nullptr, nullptr, nullptr,
+         napi_default, nullptr},
+        {"screenshotReleaseCapture", nullptr, ClearPreparedScreenshot, nullptr, nullptr, nullptr,
          napi_default, nullptr},
     };
-    napi_define_properties(env, exports, sizeof(properties) / sizeof(properties[0]), properties);
+    if (napi_define_properties(env, exports, sizeof(properties) / sizeof(properties[0]),
+                               properties) != napi_ok)
+        napi_throw_error(env, nullptr, "无法导出截图接口");
 }

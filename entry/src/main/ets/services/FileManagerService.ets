@@ -30,7 +30,7 @@ export function formatFileSize(bytes: number): string {
 }
 
 export async function listFileManagerFiles(context: common.UIAbilityContext): Promise<FileManagerFile[]> {
-  const files = await nativeBridge.harmonyListFiles(await ensureWorkspaceAccess(context));
+  const files = await nativeBridge.sandboxListFiles(await ensureWorkspaceAccess(context));
   return files.map((file: HarmonySandboxFile): FileManagerFile => {
     return {
       name: file.name, path: file.path, role: file.role, kind: file.kind,
@@ -57,7 +57,7 @@ export function filterFileManagerFiles(files: FileManagerFile[], category: strin
 
 // 左键只定位所在目录：复用沙箱目录校验，不恢复任务或修改最近使用时间。
 export async function openFileDirectory(context: common.UIAbilityContext, file: FileManagerFile): Promise<void> {
-  const directory = nativeBridge.harmonyValidateTaskDirectory(
+  const directory = nativeBridge.sandboxValidateTaskDirectory(
     await ensureWorkspaceAccess(context), file.path.substring(0, file.path.lastIndexOf('/')));
   const options: OpenLinkOptions = {
     parameters: { fileUri: fileUri.getUriFromPath(directory) }

@@ -78,6 +78,9 @@ HuiWenMCP/
 │   │   │   │           ├── FileManagerList.ets  分组懒加载列表
 │   │   │   │           ├── FileManagerItem.ets  文件行与左右键操作
 │   │   │   │           └── FileTimeGrouping.ets 时间分组与文案
+│   │   │   ├── bridge/                Qt ↔ ArkTS 协议与会话归属
+│   │   │   │   ├── BridgeTypes.ets    具名工作区／截图事件与结果类型
+│   │   │   │   └── QtSessionBridge.ets 统一收发，隔离旧宿主的回包与注销
 │   │   │   ├── pages/HomePage.ets      [已有] 首页功能切换与 Qt 窗口交接
 │   │   │   ├── pages/Index.ets         [已有] QPA 固定加载的 Qt XComponent 承载页
 │   │   │   ├── services/ConversionService.ets [已有] 页面调用原生转换的统一入口
@@ -182,6 +185,14 @@ HuiWenMCP/
 QPA 在进程内只启动一次 Qt 主循环，CEF 引擎也保留到应用退出。每次工作区注册/解除现有 NAPI 回调时，Qt 创建/释放对应的 `ConversionWindow`，下次进入仍使用 `showMaximized()`；关闭工作区不调用 `CefShutdown()`。窗口管理暂放 `main.cpp` 与 `closeEvent()`，后续再迁入窗口基类。本次仅做格式检查，连续往返和 CEF 展示仍需真机验收。
 
 当前 QPA 固定加载 `pages/Index`，不能让该路由同时作为 ArkTS 首页。`EntryAbility` 加载独立的 `pages/HomePage`；`Index.ets` 仅创建 Qt 的 NODE 类型 XComponent。`QtWorkspaceAbility.newLocalStorage()` 提供存储，QPA 写入 `idName` 并传给承载页。若在承载页放首页事件监听，会在 Qt 就绪时把 Qt Ability 也关闭；缺少存储方法则会产生 `newLocalStorage not found`、`Need object` 等日志。
+
+NAPI 仍只有 `libhuiwen_native.so` 一个模块，导出声明统一在 `entry/src/main/cpp/types/libhuiwen_native/Index.d.ts`：
+
+- `sessionAttach` 返回会话 ID；`sessionDetach` 和 `sessionDeliverResult` 必须携带同一 ID。旧宿主延迟注销、异步结果和已排队事件不能操作下一次会话。
+- `sandboxImportDocument`、`sandboxValidateOutputFile`、`sandboxValidateTaskDirectory`、`sandboxListRecentWorkspaces`、`sandboxLoadWorkspace`、`sandboxListFiles`、`sandboxCopyWorkspaces`、`sandboxCleanWorkspaces` 负责沙箱能力，保留原有 FD 复制与路径校验。
+- `screenshotPrepareCapture`／`screenshotReleaseCapture` 负责起窗前抓屏缓存，保持先抓屏后启动覆盖窗口的顺序。
+- Qt 业务调用 `QtBridge` 的具名方法；ArkTS Ability 通过 `QtSessionBridge` 接收具名处理器并发送结果。通用 action／JSON 只在两侧桥接文件中解析，业务层不自行分发协议；恢复结果直接传任务路径和错误，不在路径内嵌第二层 JSON。
+- 跨线程方向保持 `Qt → TSFN → ArkTS`、`ArkTS → QueuedConnection → Qt`。桥接层不调用 `startAbility` 或管理窗口；窗口交接仍由对应 Ability 和 `main.cpp` 负责，后续窗口基类可以迁移这部分，不需修改通信协议。
 
 文件选择链为 `DocumentView::cardActivated → ConversionWindow::selectDocument() → SandboxService → QtBridge → QtWorkspaceAbility → DocumentStore`。Qt 请求进入 ArkTS 线程处理；结果经 NAPI 投递到 Qt 线程，不跨线程直接操作界面。新 Ability 使用自己的 Context，首页关闭后文件选择仍可继续。DocumentStore 只保留 Picker、URI 授权打开及关闭；目录、时间戳、命名、最近使用和缓存规则由通用 C++ `SandboxStore` 负责；鸿蒙授权 fd 复制与适配由 `HarmonySandbox` 负责。
 

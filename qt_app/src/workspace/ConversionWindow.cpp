@@ -16,7 +16,6 @@
 #include <QCloseEvent>
 #include <QDir>
 #include <QJsonArray>
-#include <QJsonDocument>
 #include <QMessageBox>
 #include <QPointer>
 #include <QSaveFile>
@@ -231,13 +230,12 @@ ConversionWindow::ConversionWindow(const QString &mode, const QString &kind, QWi
     if (editor_)
     {
 #ifdef Q_OS_OPENHARMONY
-        connect(&QtBridge::instance(), &QtBridge::replyReceived, this, [this](const QString &json) {
-            if (QJsonDocument::fromJson(json.toUtf8()).object().value("action").toString() == "closeAborted")
-            {
-                closeApproved_ = false;
-                editor_->sendMarkdownMessage({{"type", "unlock"}});
-            }
-        });
+        connect(&QtBridge::instance(), &QtBridge::workspaceCloseCancelled, this,
+                [this]
+                {
+                    closeApproved_ = false;
+                    editor_->sendMarkdownMessage({{"type", "unlock"}});
+                });
 #endif
         saveAction_ = functionBar_->addCommand(QStringLiteral("保存"));
         connect(saveAction_, &QAction::triggered, this, [this] {
@@ -291,7 +289,7 @@ void ConversionWindow::closeEvent(QCloseEvent *event)
 {
 #ifdef Q_OS_OPENHARMONY
     event->ignore();
-    QtBridge::instance().request("close");
+    QtBridge::instance().requestReturnHome();
 #else
     if (closeApproved_ || !editor_)
         QWidget::closeEvent(event);

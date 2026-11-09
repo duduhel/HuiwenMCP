@@ -9,18 +9,7 @@ import { showScreenToast } from '../services/screenshot/ScreenToast';
 import { finishScreenshot } from '../services/screenshot/ScreenshotService';
 import { downloadScreenshot, rememberColor, rememberScreenshot } from '../services/screenshot/ScreenshotHistory';
 import { screenshotCacheRoot } from '../services/settings/AppSettings';
-
-interface ScreenshotResult {
-  action: string;
-  format: string;
-  displayId: number;
-  path: string;
-  error: string;
-  value: string;
-  color: string;
-  ok: boolean;
-  cached: boolean;
-}
+import { QtSessionBridge } from '../bridge/QtSessionBridge';
 
 export default class QtScreenshotAbility extends UIAbility {
   // 与工作区共用 Qt 运行时，启动参数由现有 NAPI 会话桥区分。
@@ -28,6 +17,7 @@ export default class QtScreenshotAbility extends UIAbility {
   private launchParams: string = '';
   private contentReady: () => void = () => {};
   private destroyed: boolean = false;
+  private session: QtSessionBridge = new QtSessionBridge();
 
   newLocalStorage(): LocalStorage {
     const storage = new LocalStorage();
@@ -56,57 +46,56 @@ export default class QtScreenshotAbility extends UIAbility {
       const mainWindow = windowStage.getMainWindowSync();
       mainWindow.setWindowBackgroundColor('#00000000');
       mainWindow.setWindowDecorVisible(false);
-      const screenshotContext = this.context;
-      // 不注册 CEF 平台代理、不加载文件任务，也不向首页发送工作区 ready。
-      nativeBridge.registerWorkspace((json: string) => {
-        const result = JSON.parse(json) as ScreenshotResult;
-        if (result.action === 'downloadScreenshot') {
-          this.download(result);
-          return;
-        }
-        if (result.action === 'colorCopied') {
-          rememberColor(screenshotContext.getApplicationContext(), result.value, result.color)
-            .catch((error: Error) => {
-              hilog.error(0xFF00, 'HuiwenScreenshot', 'HUIWEN_COLOR_HISTORY_FAILED: %{public}s', error.message);
-            });
-          // 独立浮窗使用有效的 Ability 上下文加载页面，不依赖首页。
-          showScreenToast(screenshotContext, `${result.format} 色值已复制到剪贴板`, result.displayId)
-            .catch((error: BusinessError) => {
-              hilog.warn(0xFF00, 'HuiwenScreenshot',
-                'HUIWEN_SCREEN_TOAST_FAILED: code=%{public}d message=%{public}s', error.code ?? -1, error.message);
-            });
-          return;
-        }
-        if (result.action !== 'screenshotFinished') {
-          return;
-        }
-        if (result.error !== '') {
-          hilog.error(0xFF00, 'HuiwenScreenshot', 'HUIWEN_SCREENSHOT_FAILED: %{public}s', result.error);
-          windowStage.getMainWindowSync().getUIContext().getPromptAction().showToast({ message: result.error });
-          // 抓屏失败时可能尚未创建 Qt 覆盖窗口，显式结束空宿主。
-          this.context.terminateSelf().catch((error: Error) => console.warn(error.message));
-        } else {
-          hilog.info(0xFF00, 'HuiwenScreenshot', 'HUIWEN_SCREENSHOT_FINISHED: %{public}s', result.path);
-          if (result.ok && result.path !== '') {
-            // 入库服务持有应用上下文，截图窗口销毁后仍能完成写盘；取消截图不会新增记录。
-            rememberScreenshot(screenshotContext.getApplicationContext(), result.path, result.cached)
-              .catch((error: Error) => {
-                hilog.error(0xFF00, 'HuiwenScreenshot', 'HUIWEN_SCREENSHOT_HISTORY_FAILED: %{public}s', error.message);
-              });
-          }
-        }
-      }, 'screenshot', '', screenshotCacheRoot(screenshotContext));
+      // 不注册 CEF 代理；业务处理不再解析 JSON，会话归属由桥接层负责。
+      this.session.attachScreenshot(screenshotCacheRoot(this.context), {
+        onDownload: (path: string, error: string, displayId: number): Promise<void> =>
+          this.download(path, error, displayId),
+        onColorCopied: (format: string, value: string, color: string, displayId: number): Promise<void> =>
+          this.colorCopied(format, value, color, displayId),
+        onFinished: (ok: boolean, path: string, error: string, cached: boolean): Promise<void> =>
+          this.screenshotFinished(windowStage, ok, path, error, cached)
+      });
     } catch (error) {
       this.failStart(error as Error);
     }
   }
 
-  private async download(result: ScreenshotResult): Promise<void> {
+  private async colorCopied(format: string, value: string, color: string, displayId: number): Promise<void> {
+    const context = this.context;
+    // 入库与全局提示独立完成，不让截图 Ability 的关闭取消应用级操作。
+    rememberColor(context.getApplicationContext(), value, color).catch((error: Error) => {
+      hilog.error(0xFF00, 'HuiwenScreenshot', 'HUIWEN_COLOR_HISTORY_FAILED: %{public}s', error.message);
+    });
+    try {
+      await showScreenToast(context, `${format} 色值已复制到剪贴板`, displayId);
+    } catch (failure) {
+      const error = failure as BusinessError;
+      hilog.warn(0xFF00, 'HuiwenScreenshot',
+        'HUIWEN_SCREEN_TOAST_FAILED: code=%{public}d message=%{public}s', error.code ?? -1, error.message);
+    }
+  }
+
+  private async screenshotFinished(windowStage: window.WindowStage, ok: boolean, path: string,
+    error: string, cached: boolean): Promise<void> {
+    if (error !== '') {
+      hilog.error(0xFF00, 'HuiwenScreenshot', 'HUIWEN_SCREENSHOT_FAILED: %{public}s', error);
+      windowStage.getMainWindowSync().getUIContext().getPromptAction().showToast({ message: error });
+      // 抓屏失败可能没有 Qt 覆盖窗口，显式结束空宿主。
+      await this.context.terminateSelf();
+    } else {
+      hilog.info(0xFF00, 'HuiwenScreenshot', 'HUIWEN_SCREENSHOT_FINISHED: %{public}s', path);
+      if (ok && path !== '') {
+        await rememberScreenshot(this.context.getApplicationContext(), path, cached);
+      }
+    }
+  }
+
+  private async download(sourcePath: string, sourceError: string, displayId: number): Promise<void> {
     let path = '';
     let error = '';
     try {
-      if (result.error !== '') { throw new Error(result.error); }
-      path = await downloadScreenshot(this.context, result.path);
+      if (sourceError !== '') { throw new Error(sourceError); }
+      path = await downloadScreenshot(this.context, sourcePath);
       hilog.info(0xFF00, 'HuiwenScreenshot', 'HUIWEN_SCREENSHOT_DOWNLOADED: %{public}s', path);
     } catch (failure) {
       error = (failure as Error).message;
@@ -114,19 +103,19 @@ export default class QtScreenshotAbility extends UIAbility {
     }
     if (this.destroyed) { return; }
     try {
-      await showScreenToast(this.context, error || '截图已保存到设置的目录', result.displayId);
+      await showScreenToast(this.context, error || '截图已保存到设置的目录', displayId);
     } catch (failure) {
       hilog.warn(0xFF00, 'HuiwenScreenshot', 'HUIWEN_SCREEN_TOAST_FAILED: %{public}s', (failure as Error).message);
     }
     // 用户可能在异步保存期间取消截图；旧宿主不能向下一次 Qt 会话发送回包。
     if (!this.destroyed) {
-      nativeBridge.workspaceReply(JSON.stringify({ action: 'downloadScreenshot', path: path, error: error }));
+      this.session.completeScreenshotDownload(path, error);
     }
   }
 
   private failStart(error: Error): void {
     finishScreenshot();
-    nativeBridge.clearPreparedScreenshot();
+    nativeBridge.screenshotReleaseCapture();
     this.context.getApplicationContext().eventHub.off('huiwen.screenshot.contentReady', this.contentReady);
     hilog.error(0xFF00, 'HuiwenScreenshot', 'HUIWEN_SCREENSHOT_START_FAILED: %{public}s', error.message);
     this.context.terminateSelf().catch((failure: Error) => console.warn(failure.message));
@@ -139,9 +128,9 @@ export default class QtScreenshotAbility extends UIAbility {
   onDestroy(): void {
     this.destroyed = true;
     finishScreenshot();
-    nativeBridge.clearPreparedScreenshot();
+    nativeBridge.screenshotReleaseCapture();
     this.context.getApplicationContext().eventHub.off('huiwen.screenshot.contentReady', this.contentReady);
     // 等 QPA 标记宿主已销毁后，再解除本次 Qt 会话，沿用工作区的释放顺序。
-    setTimeout(() => nativeBridge.clearWorkspace(), 0);
+    setTimeout(() => this.session.detach(), 0);
   }
 }

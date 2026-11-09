@@ -54,14 +54,14 @@ async function migrateWorkspaceLocation(context: common.UIAbilityContext, destin
   const source = await ensureWorkspaceAccess(context);
   const settings = readSettings(context);
   // Native 返回校验后的真实根目录；目标有已有数据时拒绝覆盖。
-  const root = await nativeBridge.harmonyCopyWorkspaces(source, destination);
+  const root = await nativeBridge.sandboxCopyWorkspaces(source, destination);
   settings.storageRoot = uri === '' ? '' : root;
   settings.storageUri = uri;
   await saveSettings(context, settings);
   if (source !== root) {
     // 切换已落盘后才清理旧副本；失败保留原副本，避免回滚已生效的新目录。
     try {
-      await nativeBridge.harmonyCleanWorkspaces(source, 'workspaces', root);
+      await nativeBridge.sandboxCleanWorkspaces(source, 'workspaces', root);
     } catch (error) {
       throw new Error(`新位置已生效，旧目录副本未能清理：${(error as Error).message}`);
     }
@@ -75,5 +75,5 @@ export async function cleanWorkspaceCache(context: common.UIAbilityContext, mode
   if (!fileIo.accessSync(root)) {
     return 0;
   }
-  return nativeBridge.harmonyCleanWorkspaces(root, mode);
+  return nativeBridge.sandboxCleanWorkspaces(root, mode);
 }

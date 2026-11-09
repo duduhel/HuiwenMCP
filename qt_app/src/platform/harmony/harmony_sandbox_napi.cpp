@@ -115,6 +115,7 @@ void reject(napi_env env, napi_deferred deferred, const std::string &message)
     napi_reject_deferred(env, deferred, error);
 }
 
+// NAPI 工作线程执行沙箱 IO，不操作 ArkTS 对象；结果由 complete 回到 ArkTS 线程组装。
 void execute(napi_env, void *data)
 {
     auto *task = static_cast<SandboxWork *>(data);
@@ -141,6 +142,7 @@ void execute(napi_env, void *data)
     }
 }
 
+// ArkTS 线程兑现／拒绝 Promise，并回收异步任务；任务析构同时关闭导入时复制的 fd。
 void complete(napi_env env, napi_status status, void *data)
 {
     std::unique_ptr<SandboxWork> task(static_cast<SandboxWork *>(data));
@@ -196,6 +198,8 @@ napi_value queue(napi_env env, std::unique_ptr<SandboxWork> task)
     return promise;
 }
 
+// sandboxImportDocument：ArkTS 传 root／文件名／授权 fd／kind／mode，返回 Promise<沙箱文档>。
+// 同步复制 fd 后交给工作线程，调用方仍负责关闭原 fd；副本由任务负责释放。
 napi_value importDocument(napi_env env, napi_callback_info info)
 {
     size_t count = 5;
@@ -221,6 +225,8 @@ napi_value importDocument(napi_env env, napi_callback_info info)
     return queue(env, std::move(task));
 }
 
+// sandboxListRecentWorkspaces：按 root／mode／limit／offset
+// 异步查询，返回最近任务数组，不更新时间。
 napi_value recentDocuments(napi_env env, napi_callback_info info)
 {
     size_t count = 4;
@@ -247,6 +253,7 @@ napi_value recentDocuments(napi_env env, napi_callback_info info)
 }
 
 // 文件管理只读快照：后台扫描一次，不复用最近任务分页，也不触发恢复或转换。
+// sandboxListFiles：按 root 异步返回真实可读的输入／输出文件数组，供文件管理筛选。
 napi_value listFiles(napi_env env, napi_callback_info info)
 {
     size_t count = 1;
@@ -262,6 +269,7 @@ napi_value listFiles(napi_env env, napi_callback_info info)
     return queue(env, std::move(task));
 }
 
+// sandboxLoadWorkspace：按 root／taskPath 异步校验并返回任务文档，仅读取，不更新时间。
 napi_value loadTask(napi_env env, napi_callback_info info)
 {
     size_t count = 2;
@@ -298,11 +306,13 @@ napi_value storageMaintenance(napi_env env, napi_callback_info info, Operation o
     return queue(env, std::move(task));
 }
 
+// sandboxCopyWorkspaces：按源、目标根目录异步复制并校验，返回真实目标根目录；保留源文件。
 napi_value copyWorkspaces(napi_env env, napi_callback_info info)
 {
     return storageMaintenance(env, info, Operation::CopyWorkspaces);
 }
 
+// sandboxCleanWorkspaces：按 root／清理类型／可选已复制目录异步清理，返回清理数量。
 napi_value cleanWorkspaces(napi_env env, napi_callback_info info)
 {
     return storageMaintenance(env, info, Operation::CleanWorkspaces);
@@ -339,11 +349,13 @@ napi_value pathOperation(napi_env env, napi_callback_info info, PathOperation op
     }
 }
 
+// sandboxValidateOutputFile：在调用线程同步校验 root 内输出文件，返回有效路径；失败抛 NAPI 异常。
 napi_value validateOutput(napi_env env, napi_callback_info info)
 {
     return pathOperation(env, info, PathOperation::ValidateOutput);
 }
 
+// sandboxValidateTaskDirectory：同步校验 root 内任务或 input／output 目录，返回有效目录路径。
 napi_value validateTaskDirectory(napi_env env, napi_callback_info info)
 {
     return pathOperation(env, info, PathOperation::ValidateTaskDirectory);
@@ -351,24 +363,28 @@ napi_value validateTaskDirectory(napi_env env, napi_callback_info info)
 
 } // namespace
 
+// 将具名沙箱能力注册到同一个 Native 模块；文件规则仍由 SandboxStore／HarmonySandbox 实现。
 void InitHarmonySandbox(napi_env env, napi_value exports)
 {
     napi_property_descriptor methods[] = {
-        {"harmonyImportDocument", nullptr, importDocument, nullptr, nullptr, nullptr, napi_default,
+        {"sandboxImportDocument", nullptr, importDocument, nullptr, nullptr, nullptr, napi_default,
          nullptr},
-        {"harmonyValidateOutput", nullptr, validateOutput, nullptr, nullptr, nullptr, napi_default,
-         nullptr},
-        {"harmonyValidateTaskDirectory", nullptr, validateTaskDirectory, nullptr, nullptr, nullptr,
+        {"sandboxValidateOutputFile", nullptr, validateOutput, nullptr, nullptr, nullptr,
          napi_default, nullptr},
-        {"harmonyRecentDocuments", nullptr, recentDocuments, nullptr, nullptr, nullptr,
+        {"sandboxValidateTaskDirectory", nullptr, validateTaskDirectory, nullptr, nullptr, nullptr,
          napi_default, nullptr},
-        {"harmonyLoadTask", nullptr, loadTask, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"harmonyListFiles", nullptr, listFiles, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"harmonyCopyWorkspaces", nullptr, copyWorkspaces, nullptr, nullptr, nullptr, napi_default,
+        {"sandboxListRecentWorkspaces", nullptr, recentDocuments, nullptr, nullptr, nullptr,
+         napi_default, nullptr},
+        {"sandboxLoadWorkspace", nullptr, loadTask, nullptr, nullptr, nullptr, napi_default,
          nullptr},
-        {"harmonyCleanWorkspaces", nullptr, cleanWorkspaces, nullptr, nullptr, nullptr,
+        {"sandboxListFiles", nullptr, listFiles, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"sandboxCopyWorkspaces", nullptr, copyWorkspaces, nullptr, nullptr, nullptr, napi_default,
+         nullptr},
+        {"sandboxCleanWorkspaces", nullptr, cleanWorkspaces, nullptr, nullptr, nullptr,
          napi_default, nullptr},
     };
-    napi_define_properties(env, exports, sizeof(methods) / sizeof(methods[0]), methods);
+    if (napi_define_properties(env, exports, sizeof(methods) / sizeof(methods[0]), methods) !=
+        napi_ok)
+        napi_throw_error(env, nullptr, "无法导出沙箱接口");
 }
 #endif

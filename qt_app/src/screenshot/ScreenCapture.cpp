@@ -8,7 +8,6 @@
 #ifdef Q_OS_OPENHARMONY
 #include "platform/harmony/harmony_screenshot.h"
 #include "platform/harmony/qt_bridge.h"
-#include <QJsonDocument>
 // 汇文 CEF 预览的 Ctrl+V 读取鸿蒙系统剪贴板；Qt setPixmap 不保证图片同步过去。
 // 这里把截图以 file:// URI + pixelmap 两条记录同时写入系统 pasteboard，
 // 保证所有 web 窗口 Chromium Ctrl+V 能拿到图片。
@@ -408,19 +407,18 @@ class CaptureOverlay final : public QWidget
         createToolbar();
         createTextEditor();
 #ifdef Q_OS_OPENHARMONY
-        connect(&QtBridge::instance(), &QtBridge::replyReceived, this, [this](const QString &json) {
-            const auto result = QJsonDocument::fromJson(json.toUtf8()).object();
-            if (result.value("action").toString() != "downloadScreenshot" || !downloadPending_)
-                return;
-            downloadPending_ = false;
-            toolbar_->setEnabled(true);
-            if (result.value("error").toString().isEmpty() &&
-                !result.value("path").toString().isEmpty())
-                finish(true, downloadPath_, QString(), true);
-            else
-                qWarning() << "HUIWEN_SCREENSHOT_DOWNLOAD_FAILED:"
-                           << result.value("error").toString();
-        });
+        connect(&QtBridge::instance(), &QtBridge::screenshotDownloadCompleted, this,
+                [this](const QString &path, const QString &error)
+                {
+                    if (!downloadPending_)
+                        return;
+                    downloadPending_ = false;
+                    toolbar_->setEnabled(true);
+                    if (error.isEmpty() && !path.isEmpty())
+                        finish(true, downloadPath_, QString(), true);
+                    else
+                        qWarning() << "HUIWEN_SCREENSHOT_DOWNLOAD_FAILED:" << error;
+                });
 #endif
         // 记录截图启动时的主窗口矩形（屏幕坐标）。
         // hiddenWindow 是 ignoreActiveWindow=true 时被 hide 的主窗口，
@@ -925,12 +923,8 @@ class CaptureOverlay final : public QWidget
 #ifdef Q_OS_OPENHARMONY
                 // 屏幕浮窗由 ArkTS 独立管理，关闭截图无需等待提示。
                 const QString format = color.startsWith('#') ? "HEX" : "RGB";
-                QtBridge::instance().request(
-                    "colorCopied", QJsonObject{{"format", format},
-                                               {"value", color},
-                                               {"color", amplifier_->colorHex()},
-                                               { "displayId",
-                                                 static_cast<double>(captureDisplayId_) }});
+                QtBridge::instance().notifyColorCopied(format, color, amplifier_->colorHex(),
+                                                       captureDisplayId_);
 #endif
                 event->accept();
                 dismiss(); // 只关闭截图，不保存图片或覆盖刚复制的文本。
@@ -1303,11 +1297,8 @@ class CaptureOverlay final : public QWidget
         downloadPending_ = true;
         toolbar_->setEnabled(false);
         // 系统目录与权限只由 ArkTS 管理；成功回包后才关闭选区，失败仍可继续操作。
-        if (!QtBridge::instance().request("downloadScreenshot",
-                                          QJsonObject{{"path", downloadPath_},
-                                                      {"error", error},
-                                                      { "displayId",
-                                                        static_cast<double>(captureDisplayId_) }}))
+        if (!QtBridge::instance().requestScreenshotDownload(downloadPath_, error,
+                                                            captureDisplayId_))
         {
             downloadPending_ = false;
             toolbar_->setEnabled(true);

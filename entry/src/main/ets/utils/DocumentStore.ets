@@ -52,7 +52,7 @@ export async function pickDocumentToSandbox(context: common.UIAbilityContext, ki
   }
   try {
     const root = await ensureWorkspaceAccess(context);
-    return await nativeBridge.harmonyImportDocument(
+    return await nativeBridge.sandboxImportDocument(
       root, name, source.fd, kind, mode);
   } finally {
     await fileIo.close(source);
@@ -62,5 +62,5 @@ export async function pickDocumentToSandbox(context: common.UIAbilityContext, ki
 // 首页和全部工作区复用分页入口；查询本身不修改任务时间。
 export async function getRecentDocuments(context: common.UIAbilityContext, limit: number = 5,
   mode: string = 'all', offset: number = 0): Promise<HarmonySandboxDocument[]> {
-  return nativeBridge.harmonyRecentDocuments(await ensureWorkspaceAccess(context), mode, limit, offset);
+  return nativeBridge.sandboxListRecentWorkspaces(await ensureWorkspaceAccess(context), mode, limit, offset);
 }
