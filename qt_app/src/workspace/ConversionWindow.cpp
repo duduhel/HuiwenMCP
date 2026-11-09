@@ -10,7 +10,6 @@
 #include "documentView/renderers/word/WordPreviewWidget.h"
 #include "sandbox/SandboxService.h"
 #include "services/ConversionService.h"
-#include "sidebars/agent/AgentSidebar.h"
 #include "sidebars/navigation/NavigationSidebar.h"
 #include <QAction>
 #include <QCloseEvent>
@@ -35,8 +34,7 @@
 
 ConversionWindow::ConversionWindow(const QString &mode, const QString &kind, QWidget *parent)
     : QWidget(parent), mode_(mode), kind_(kind), splitter_(new WorkspaceSplitter(this)),
-      bodySplitter_(new WorkspaceSplitter(this)), agentSidebar_(new AgentSidebar(this)),
-      navigationSidebar_(new NavigationSidebar(this)),
+      bodySplitter_(new WorkspaceSplitter(this)), navigationSidebar_(new NavigationSidebar(this)),
       source_(kind == "word" ? new DocumentView(new WordPreviewWidget,
                                                 QStringLiteral("请选择 Word（DOC / DOCX）"), true)
               : kind == "md" && mode == "edit"
@@ -97,21 +95,15 @@ ConversionWindow::ConversionWindow(const QString &mode, const QString &kind, QWi
     // 只有一个子控件时 QSplitter 不显示分隔条，文档占满原有内容区。
     bodySplitter_->addWidget(navigationSidebar_);
     bodySplitter_->addWidget(splitter_);
-    bodySplitter_->addWidget(agentSidebar_);
     navigationSidebar_->hide();
     bodySplitter_->setStretchFactor(0, 0);
     bodySplitter_->setStretchFactor(1, 1);
-    bodySplitter_->setStretchFactor(2, 0);
-    bodySplitter_->setSizes({0, 820, agentSidebarWidth_});
+    bodySplitter_->setSizes({0, 820});
     layout->addWidget(bodySplitter_, 1);
-    connect(functionBar_, &FunctionBar::navigationSidebarToggled, this, [this](bool visible) {
-        toggleSidebar(navigationSidebar_, 0, navigationSidebarWidth_, visible);
-    });
-    connect(functionBar_, &FunctionBar::agentSidebarToggled, this,
-            [this](bool visible) { toggleSidebar(agentSidebar_, 2, agentSidebarWidth_, visible); });
+    connect(functionBar_, &FunctionBar::navigationSidebarToggled, this,
+            &ConversionWindow::toggleNavigationSidebar);
     connect(bodySplitter_, &QSplitter::splitterMoved, this, [this] {
         bodySplitter_->raiseAbovePreview();
-        agentSidebar_->raiseAbovePreview();
         navigationSidebar_->raiseAbovePreview();
         placeConvertButton();
     });
@@ -125,7 +117,6 @@ ConversionWindow::ConversionWindow(const QString &mode, const QString &kind, QWi
     {
         splitter_->raiseAbovePreview();
         bodySplitter_->raiseAbovePreview();
-        agentSidebar_->raiseAbovePreview();
         navigationSidebar_->raiseAbovePreview();
         refreshScrollSync();
         placeConvertButton();
@@ -307,21 +298,18 @@ void ConversionWindow::resizeEvent(QResizeEvent *event)
     placeConvertButton();
 }
 
-void ConversionWindow::toggleSidebar(QWidget *sidebar, int index, int &width, bool visible)
+void ConversionWindow::toggleNavigationSidebar(bool visible)
 {
     auto sizes = bodySplitter_->sizes();
-    if (!visible && sizes[index] > 0)
-        width = sizes[index];
-    sidebar->setVisible(visible);
-    sizes[index] = visible ? std::max(sidebar->minimumWidth(), width) : 0;
-    const int handles =
-        (navigationSidebar_->isHidden() ? 0 : 1) + (agentSidebar_->isHidden() ? 0 : 1);
-    sizes[1] = std::max(260, bodySplitter_->width() - sizes[0] - sizes[2] -
-                                 handles * bodySplitter_->handleWidth());
+    if (!visible && sizes[0] > 0)
+        navigationSidebarWidth_ = sizes[0];
+    navigationSidebar_->setVisible(visible);
+    sizes[0] = visible ? std::max(navigationSidebar_->minimumWidth(), navigationSidebarWidth_) : 0;
+    sizes[1] = std::max(260, bodySplitter_->width() - sizes[0] -
+                                 (visible ? bodySplitter_->handleWidth() : 0));
     bodySplitter_->setSizes(sizes);
     if (visible)
-        sidebar->setFocus(Qt::OtherFocusReason);
-    agentSidebar_->raiseAbovePreview();
+        navigationSidebar_->setFocus(Qt::OtherFocusReason);
     navigationSidebar_->raiseAbovePreview();
     bodySplitter_->raiseAbovePreview();
     placeConvertButton();
@@ -384,7 +372,6 @@ void ConversionWindow::selectDocument()
 void ConversionWindow::showDocument(const DocumentItem &document)
 {
     document_ = document;
-    agentSidebar_->setDocument(document);
     navigationSidebar_->setDocument(document);
     retry_ = false;
     status_->clear();

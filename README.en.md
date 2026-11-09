@@ -16,7 +16,7 @@ Read source documents, compare PDF-to-Markdown results side by side, edit Markdo
 
 ![PDF and Markdown side-by-side workspace with file tree, outline and assistant panel](docs/images/pdf-to-markdown-workspace.png)
 
-These screenshots show a running version supplied by the maintainer. The assistant panel currently provides a conversation UI and model configuration; a live model backend is not connected yet.
+These screenshots show a running version before the assistant was moved out. The current `main` branch excludes the right assistant panel and its toggle. Its UI, model settings and local conversations are preserved on `feature/agent-sidebar`; no live model backend is connected.
 
 ## Features and scope
 
@@ -28,7 +28,9 @@ These screenshots show a running version supplied by the maintainer. The assista
 | Markdown editing | Editing, saving and unsaved-change confirmation. |
 | Workspaces | Input/output files, document outlines and recent task restoration. |
 | Home appearance | Light, dark and system modes; Qt workspace colors are managed separately. |
-| Document assistant | UI and configuration only; live model calls and attachments are still in development. |
+| Document assistant (separate branch) | UI, conversations and model settings are preserved on `feature/agent-sidebar`; `main` does not build or display the module. |
+
+The assistant branch restores the implementation in a separate commit after its removal from `main`, so it can be merged back later. Resolve any workspace or toolbar conflicts against subsequent changes on `main`. Existing local conversation caches are left intact.
 
 Word editing, PDF editing, OCR and broader batch conversion are planned. Compatibility depends on document content and device environment; screenshots do not validate every format or workflow.
 

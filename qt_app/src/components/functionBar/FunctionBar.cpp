@@ -28,10 +28,8 @@ FunctionBar::FunctionBar(const QString &mode, QWidget *parent)
         "margin: 0; padding: 0 20px; color: #34445C; font-size: 28px; font-weight: normal; }"
         "QToolBar#workspaceFunctionBar QToolButton[selected=\"true\"] "
         "{ background: #DCE1E8; }"
-        "QToolBar#workspaceFunctionBar QToolButton#agentSidebarToggle, "
         "QToolBar#workspaceFunctionBar QToolButton#navigationSidebarToggle "
         "{ padding: 0; border-radius: 8px; }"
-        "QToolBar#workspaceFunctionBar QToolButton#agentSidebarToggle:checked, "
         "QToolBar#workspaceFunctionBar QToolButton#navigationSidebarToggle:checked "
         "{ background: #E5E5E5; }"
         "QToolBar#workspaceFunctionBar QToolButton::menu-indicator "
@@ -68,7 +66,7 @@ FunctionBar::FunctionBar(const QString &mode, QWidget *parent)
     };
     navigationToggle_ = new QToolButton(this);
     navigationToggle_->setObjectName("navigationSidebarToggle");
-    navigationToggle_->setIcon(sidebarIcon(SidebarEdge::Left));
+    navigationToggle_->setIcon(sidebarIcon());
     navigationToggle_->setIconSize(QSize(28, 28));
     navigationToggle_->setFixedSize(48, 48);
     navigationToggle_->setCheckable(true);
@@ -101,21 +99,6 @@ FunctionBar::FunctionBar(const QString &mode, QWidget *parent)
     auto *space = new QWidget(this);
     space->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     trailingSpacer_ = addWidget(space);
-    agentToggle_ = new QToolButton(this);
-    agentToggle_->setObjectName("agentSidebarToggle");
-    agentToggle_->setIcon(sidebarIcon(SidebarEdge::Right));
-    agentToggle_->setIconSize(QSize(28, 28));
-    agentToggle_->setFixedSize(48, 48);
-    agentToggle_->setCheckable(true);
-    agentToggle_->setCursor(Qt::PointingHandCursor);
-    agentToggle_->setAccessibleName(QStringLiteral("开关文档助手侧栏"));
-    setAgentSidebarVisible(true);
-    connect(agentToggle_, &QToolButton::toggled, this, [this](bool visible) {
-        agentToggle_->setToolTip(visible ? QStringLiteral("收起文档助手")
-                                         : QStringLiteral("展开文档助手"));
-        emit agentSidebarToggled(visible);
-    });
-    addWidget(agentToggle_);
 }
 
 FileMenu *FunctionBar::fileMenu() const { return fileMenu_; }
@@ -123,15 +106,8 @@ FileMenu *FunctionBar::fileMenu() const { return fileMenu_; }
 QAction *FunctionBar::addCommand(const QString &text)
 {
     auto *action = new QAction(text, this);
-    insertAction(trailingSpacer_, action); // 后加的保存等命令仍放在左侧，折叠按钮始终位于最右侧。
+    insertAction(trailingSpacer_, action); // 保存等命令放在弹性留白之前，保持靠左。
     return action;
-}
-
-void FunctionBar::setAgentSidebarVisible(bool visible)
-{
-    agentToggle_->setChecked(visible);
-    agentToggle_->setToolTip(visible ? QStringLiteral("收起文档助手")
-                                     : QStringLiteral("展开文档助手"));
 }
 
 bool FunctionBar::isScrollSynchronized() const
