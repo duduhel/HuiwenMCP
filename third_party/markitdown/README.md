@@ -13,7 +13,7 @@
 Skill 源码位于 [skill/huiwen-pdf-to-md/SKILL.md](skill/huiwen-pdf-to-md/SKILL.md)，
 属于主项目，`source/` 子模块保持独立。对外给 Agent 的入口链接：
 
-https://github.com/xristosstarnetgames439-del/HuiwenMCP/blob/main/third_party/markitdown/skill/huiwen-pdf-to-md/SKILL.md
+https://github.com/duduhel/HuiwenMCP/blob/main/third_party/markitdown/skill/huiwen-pdf-to-md/SKILL.md
 
 Agent 按入口下载最新正式 `pdf-skill-v*` Release，并在对方 Windows／macOS 创建 `.venv`、
 安装本机依赖，配置 Tesseract 和语言模型，再通过固定脚本调用转换。

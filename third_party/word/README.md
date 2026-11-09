@@ -1,6 +1,6 @@
 # PortOne Word 核心与项目构建适配
 
-`source/` 是 <https://github.com/xristosstarnetgames439-del/docx-editor> 的源码子模块，
+`source/` 是 <https://github.com/duduhel/docx-editor> 的源码子模块，
 固定主项目记录的提交。PortOne 核心修改在子模块提交、推送到我们的 fork。
 外层 `library.ts`、`build.mjs`、`check_build.mjs`、依赖锁文件及本说明属于主仓库。
 

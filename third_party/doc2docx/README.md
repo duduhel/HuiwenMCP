@@ -5,7 +5,7 @@
 
 ## 源码与维护边界
 
-- 自有 fork：[xristosstarnetgames439-del/doc2docx](https://github.com/xristosstarnetgames439-del/doc2docx)。
+- 自有 fork：[duduhel/doc2docx](https://github.com/duduhel/doc2docx)。
 - 上游：[HuiTurn/doc2docx](https://github.com/HuiTurn/doc2docx)，MIT 许可，分发时保留 LICENSE。
 - 当前版本：`0.36.6`，固定提交 `47f64ec103c4abf2c576fb0343a1abbeac3931d7`，位于 [source/](source/)。
 - 核心修改在 `source/` 子模块提交、推送到自己的 fork，再由主项目更新子模块指针。

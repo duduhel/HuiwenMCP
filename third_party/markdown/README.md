@@ -1,6 +1,6 @@
 # Markdown 核心与主项目页面适配
 
-`source/` 子模块来自 <https://github.com/xristosstarnetgames439-del/huiwen-markdown>，
+`source/` 子模块来自 <https://github.com/duduhel/huiwen-markdown>，
 统一维护 CodeMirror、Lezer Markdown、markdown-it 及富文本扩展组件。
 版本、上游来源、许可证及原始文件校验值以子模块中的 `SOURCES.json`、
 `UPSTREAM_SHA256.json` 和各组件许可文件为准，不再在主项目复制维护核心源码快照。

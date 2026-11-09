@@ -32,13 +32,13 @@ Python HNP 运行时、DevEco SDK、设备签名仍使用原项目配置，不�
 ```sh
 python3 third_party/prebuilt/pack.py \
   --version darwin-arm64-20261022-v1 \
-  --url https://github.com/xristosstarnetgames439-del/HuiwenMCP/releases/download/native-deps-20261022-v1/huiwen-qt-cef-darwin-arm64-20261022-v1.tar.gz
+  --url https://github.com/duduhel/HuiwenMCP/releases/download/native-deps-20261022-v1/huiwen-qt-cef-darwin-arm64-20261022-v1.tar.gz
 ```
 
 脚本核对来源库哈希后，生成忽略目录中的 tar.gz 和可提交的 manifest.json。
 包只包含固定开发依赖及许可文件，不包含签名、local.properties、PDFium 缓存、
 用户文档或本项目构建出来的 huiwen_qt/huiwen_native/cefsimple 动态库。
-固定包已发布至 [GitHub 开发快照](https://github.com/xristosstarnetgames439-del/HuiwenMCP/releases/tag/native-deps-20261022-v1)，首次 Run 使用清单中的下载地址。
+固定包已发布至 [GitHub 开发快照](https://github.com/duduhel/HuiwenMCP/releases/tag/native-deps-20261022-v1)，首次 Run 使用清单中的下载地址。
 本次按开发快照预发布；Chromium/厂商完整许可材料仍待补齐，未声明生产分发就绪。
 
 验证依赖恢复逻辑，不编译或打包应用：

@@ -1,5 +1,7 @@
 # 汇文MCP · HuiwenMCP for Harmony
 
+[简体中文](README.md) · [English](README.en.md)
+
 **基于 Qt + OpenHarmony / HarmonyOS PC 的文档阅读、编辑与格式转换项目。**
 
 汇文MCP 将 PDF、Markdown 与 Word 文档集中到同一个桌面工作区：阅读原文、对照转换结果、编辑 Markdown，再从最近工作区继续处理文件。项目采用 ArkTS 首页与 Qt 工作区，集成 CEF 浏览器内核、PDFium 和 Python HNP，源码公开，供学习交流、教学参考与协作开发。
@@ -40,7 +42,7 @@
 
 ## 参与项目
 
-欢迎通过 [Issue](https://github.com/duduhel/HuiwenMCP/issues) 反馈问题、提出需求，或提交 [Pull Request](https://github.com/duduhel/HuiwenMCP/pulls) 贡献代码、文档与兼容性改进。问题反馈请附设备与系统版本、复现步骤，以及可公开的示例文档；涉及隐私的文件请先脱敏。
+欢迎通过 [Issue](https://github.com/duduhel/HuiwenMCP/issues) 反馈问题、提出需求，或提交 [Pull Request](https://github.com/duduhel/HuiwenMCP/pulls) 贡献代码、文档与兼容性改进。开始前请阅读[贡献指南](CONTRIBUTING.md)，了解本地配置、子模块分工和验证要求。问题反馈请附设备与系统版本、复现步骤，以及可公开的示例文档；涉及隐私的文件请先脱敏。
 
 自有代码采用 **PolyForm Noncommercial 1.0.0**，使用与贡献前请阅读[许可证说明](#许可证)。第三方依赖遵循各自许可证。
 
@@ -68,7 +70,9 @@ Qt／CEF 继续使用原来的固定预编译 SDK／`.so`，不新增内核源�
 
 ## 当前状态
 
-- 首页保持 ArkTS；银灰介绍区与主区域按约 30% / 70% 分配宽度，主区域提供文档预览、文档编辑、文档转化三个小正方形入口，普通字重的名称放在方块外下方。点击入口打开独立格式选择子窗口；预览中的 Word（DOC／DOCX）、PDF、MD 入口打开单栏 Qt 工作区，编辑仍只展示格式；转化窗口中的 PDF→MD 入口打开双栏工作区。本次 DOC 预览接入仅做格式和静态检查，尚未重新编译、打包或设备验收。
+以下包含各阶段的实现与验证记录；功能概览见上方[核心功能](#核心功能)。历史检查结果不代表所有后续改动均已完成设备验收。
+
+- 首页保持 ArkTS；银灰介绍区与主区域按约 30% / 70% 分配宽度，主区域提供文档预览、文档编辑、文档转化三个小正方形入口，普通字重的名称放在方块外下方。点击入口打开独立格式选择子窗口；预览中的 Word（DOC／DOCX）、PDF、MD 入口打开单栏 Qt 工作区，Markdown 编辑入口打开独立编辑工作区，支持保存与未保存修改确认；Word 与 PDF 编辑仍未开放；转化窗口中的 PDF→MD 入口打开双栏工作区。本次 DOC 预览接入仅做格式和静态检查，尚未重新编译、打包或设备验收。
 - 左侧介绍区上下内边距为 50vp、左右为 32vp；标题置顶，两段介绍组成间隔 20vp 的底部内容组，外层通过 `SpaceBetween` 分布并保持左对齐。
 - 介绍区背景与黑色 ∞ 使用独立 SVG：银灰底图包含左上、右下的淡化文档及斜向柔光，∞ 的反光从中心向两侧连续衰减；底图等比例铺满，符号等比例居中，文字独立叠加，整体由 24vp 圆角裁切。本次素材与布局仅做静态检查和设计渲染，尚未编译、打包或设备验收。
 - 首页右侧入口改为顶部排列，下方“最近工作区”默认展示三条任务目录记录；当前可恢复 PDF→MD 转化任务及 PDF／MD／DOC／DOCX 单栏预览任务，沿用原文件，并在工作区载入后更新任务目录最近使用时间。本次最近列表、恢复与时间更新仅做格式检查，尚未编译、打包或真机验收。
@@ -76,7 +80,7 @@ Qt／CEF 继续使用原来的固定预编译 SDK／`.so`，不新增内核源�
 - Qt 开发依赖保存在 `third_party/qt/`，运行库从 `entry/libs/arm64-v8a/` 链接并随 HAP 分发；PDFium fork 保存在 `third_party/pdfium/source/`，Qt 左侧输入区域已接入其公开 C API 实现正文预览；已完成鸿蒙编译、HAP 打包；系统目录跳转沿用原有实现。
 - DevEco Run 构建前执行 `PrepareNativeDependencies`，按当前 PDFium 源码增量生成 `libpdfium.so`；Qt/NAPI 的 C++ 编译后同步新库到 `libs`。没有保存源码自动构建、应用内动态替换库或保持进程状态的热重载。
 - Qt 工作区默认最大化并保留系统标题栏和窗口边框，输入、输出区域解耦；中部分割线可拖动，悬浮“转化”按钮随分隔线移动。
-- 文档区域共用 `DocumentView : QStackedWidget`，由工作区注入 PDF、Markdown 或 Word 渲染器；文件卡片、预览切换、忙碌状态与对外信号集中维护。PDF 继承公共 `RasterDocumentViewport`，复用独立绘图窗口、滚动条和惯性能力；CEF 保留浏览器自身滚动。Word 通过 PortOne `readOnly` 模式显示 DOCX，与 MD 共用 `CefDocumentPreviewWidget` 的 CEF 生命周期和原生定位；编辑与保存尚未接入。本次通用化重构仅完成格式检查，尚未编译、打包或设备验收。
+- 文档区域共用 `DocumentView : QStackedWidget`，由工作区注入 PDF、Markdown 或 Word 渲染器；文件卡片、预览切换、忙碌状态与对外信号集中维护。PDF 继承公共 `RasterDocumentViewport`，复用独立绘图窗口、滚动条和惯性能力；CEF 保留浏览器自身滚动。Word 通过 PortOne `readOnly` 模式显示 DOCX，与 MD 共用 `CefDocumentPreviewWidget` 的 CEF 生命周期和原生定位；Word 编辑与保存尚未接入，Markdown 已有独立编辑与保存流程。本次通用化重构仅完成格式检查，尚未编译、打包或设备验收。
 - 输入文件卡片通过 DocumentStore 获取系统选取授权，再经 NAPI 调用 C++ harmony_sandbox 完成沙箱复制和路径安排。两侧操作统一到顶部“文件”菜单：查看模式默认预览，可切换为占位图；左侧由 PDFium 显示多页 PDF，右侧已有结果时由 CEF 显示 MD。转换成功自动切到预览并隐藏转化按钮；更换文件保留当前查看方式，清空旧结果并恢复按钮，取消选择保留原状态；尚未生成 MD 时仍显示等待提示。PDFium 后台串行渲染可见页，连续尺寸变化合并请求；位图缓存上限为 64 MiB，超长页面降低采样分辨率。Qt ConversionService 仍复用 PythonRunner 转换。本次默认预览及按钮显隐调整仅做格式检查，尚未编译、打包或真机验收。
 - 原有 Python HNP 自检与 PDF 转换已由用户在真机验证成功。新增 Qt 窗口交接、选择与结果位置操作需要真机验收。
 - 汇文 Python 包公开 `pdf_to_md()` 与独立的 `doc_to_docx()`。DOC 转换使用纯 Python 核心，打成私有 `huiwen_doc2docx.hnp`，复用原有 Python 解释器；Qt 后台服务调用 `RunDocConversion(inputPath, outputPath)`。每次 Run 按内容准备 HNP 并随 HAP 打包。Word 选择器已放开 DOC，Qt 选取／恢复 DOC 时显示加载提示，后台生成任务内临时 DOCX，再交给原有预览器；更换文件或关闭工作区后清理临时副本。本机包内执行已通过真实 DOC 正文／表格样本测试，用户已确认当前 DOC 预览基本链路可用，详见 [DOC 业务流程与文件映射](third_party/doc2docx/README.md)。
@@ -259,7 +263,7 @@ NAPI 仍只有 `libhuiwen_native.so` 一个模块，导出声明统一在 `entry
 - `sandbox/SandboxStore.h/.cpp` 是 Qt Core 通用实现，负责 `preview`、`edit`、`convert` 三类目录、任务命名、最近记录、编辑缓存查询和目录归属校验，不引入 JSON、数据库或额外索引文件。鸿蒙把它编入 `libhuiwen_native.so`，Qt 工作区链接复用；桌面直接编译此实现。
 - `SandboxService` 仍是 Qt 界面入口；鸿蒙通过 ArkTS Picker 获得授权，桌面使用 Qt 选择器。输入统一原子保存，失败只清理本次输入及空任务目录，不覆盖其他任务。
 - `platform/harmony/harmony_sandbox.h/.cpp` 负责鸿蒙 fd 复制；NAPI 同步复制授权 fd 并设置子进程不继承，在工作线程以独立偏移分块读取，成功、失败和排队失败都释放 fd。`harmony_sandbox_napi.cpp` 的目录扫描也在工作线程运行。
-- `harmonyImportDocument(filesDir, name, fd, kind, mode)` 返回 `Promise<HarmonySandboxDocument>`；`mode` 为 `preview`、`edit`、`convert`，取代原有布尔转换标记。支持 PDF、MD/Markdown、Word 导入归档；当前正式转换接口仍仅接 PDF→MD，DOCX 已接入只读预览，旧版 DOC 仍仅支持归档；Word 编辑与转换尚未开放。
+- `harmonyImportDocument(filesDir, name, fd, kind, mode)` 返回 `Promise<HarmonySandboxDocument>`；`mode` 为 `preview`、`edit`、`convert`，取代原有布尔转换标记。支持 PDF、MD/Markdown、Word 导入归档；当前正式转换接口仍仅接 PDF→MD，DOCX 已接入只读预览，旧版 DOC 经独立 DOC→DOCX 流程生成临时副本后预览；Word 编辑尚未开放。
 - `harmonyValidateOutput(filesDir, path)` 接受新任务的 `convert|edit/<任务>/output/*.md`，兼容历史 `outputs/` 下的文件；仍检查真实路径、目录归属及非空可读 MD。历史数据保留原位，不批量迁移。
 - `harmonyValidateTaskDirectory(filesDir, path)` 直接复用 `SandboxStore::validateTaskDirectory()`，只接受真实可读且不含符号链接或路径别名的 `edit|convert/<任务>/input|output` 目录。与 MD 文件校验分开，因此选取 PDF 后即可请求打开空输出目录；鸿蒙经 `openDirectory` 工作区事件调用系统文件管理器，桌面使用 `QDesktopServices`。
 
@@ -335,7 +339,7 @@ NAPI 仍只有 `libhuiwen_native.so` 一个模块，导出声明统一在 `entry
 ```
 
 - 查看模式同时控制左右区域，进入工作区和恢复任务时默认选中预览；未选择 PDF 时仍显示选择入口，未生成 MD 时右侧继续显示等待提示。选择新文件和开始转换保留当前查看方式，转换成功自动切回预览，并同步菜单蓝点；“切换模式”中的业务模式始终为转化。
-- 仅当前“转化模式”拥有更换入口；取消保留原任务、结果、查看方式和按钮状态，选取成功创建新任务、清空旧结果并恢复转化按钮。按钮显隐直接读取 `DocumentView::hasDocument()`（结果区域实例），不依赖 CEF 加载完成，不重复维护完成状态。选择或转换期间禁用查看方式切换与更换文件，避免任务串线。其他业务模式和编辑视图只保留 TODO，没有接入业务切换。
+- 当前预览、Markdown 编辑和转化模式各自提供更换文件入口；取消保留原任务、结果、查看方式和按钮状态，选取成功创建新任务、清空旧结果并恢复转化按钮。按钮显隐直接读取 `DocumentView::hasDocument()`（结果区域实例），不依赖 CEF 加载完成，不重复维护完成状态。选择或转换期间禁用查看方式切换与更换文件，避免任务串线。该菜单尚未接入业务模式切换；预览、编辑和转化工作区由首页启动参数决定。Markdown 编辑工作区使用“编辑与预览”，不开放占位图切换。
 - 输入、输出目录均定位当前任务下的目录，未选择 PDF 时禁用；系统文件管理器是否准确定位仍需真机确认。原 MD 文件卡片的目录跳转继续使用非空文件校验。
 - “滚动设置”的菜单选中项直接控制联动，不再保留隐藏复选框作为第二份状态。默认“同步滚动”：左右预览均就绪时，任意一侧滚动带动另一侧，优先按 PDF 页码对齐，无页码时按总进度同步；切回同步时按当前 PDF 位置对齐一次。“单向滚动”：只滚动当前操作区域，不向另一侧转发位置。更换文件、恢复任务和切换查看方式沿用当前滚动设置。本次接线仅做格式检查，切换效果仍需设备验收。
 
@@ -392,7 +396,7 @@ files/
 | `pickDocumentToSandbox(context, kind, DocumentMode.Preview|Edit|Convert)` | 系统选取、授权读取并按类型归档；取消不创建任务 |
 | `getRecentDocuments(context, limit = 5, mode = 'all')` | 后台读取最近任务，数量为 1–100；可筛选任一类型 |
 
-这些接口通过 NAPI 调用同一份 `SandboxStore`，返回名称、格式、模式、`taskPath`、`inputPath`、`outputPath`、`openPath` 和 `lastUsedAt`；选取成功直接返回导入结果，不再额外复制字段或附带未使用的 URI。Qt 侧继续使用 `SandboxStore::recentDocuments()`、`markUsed()`，在实际导入、打开或转换后更新使用时间。首页已接最近工作区列表与预览工作区，编辑入口仍只展示格式选项。
+这些接口通过 NAPI 调用同一份 `SandboxStore`，返回名称、格式、模式、`taskPath`、`inputPath`、`outputPath`、`openPath` 和 `lastUsedAt`；选取成功直接返回导入结果，不再额外复制字段或附带未使用的 URI。Qt 侧继续使用 `SandboxStore::recentDocuments()`、`markUsed()`，在实际导入、打开或转换后更新使用时间。首页已接最近工作区列表与预览工作区，Markdown 编辑入口已接入独立工作区，Word 与 PDF 编辑入口仍未开放。
 
 ## 首页最近工作区
 
@@ -439,7 +443,7 @@ python3 third_party/qt/prepare.py \
 
 当前 PDF 残影修复使用应用内独立 `QBackingStore`，不要求修改或重新编译 Qt SDK。
 
-PDFium fork 为 `xristosstarnetgames439-del/pdfium` 的 `huiwen-dev` 分支，首次同步提交记录官方源码 SHA；主项目固定子模块提交。首次构建会准备 DEPS 锁定的 Git 依赖、GN 和 Clang，之后由 Ninja 增量编译当前工作树，不重置用户的源码修改：
+PDFium fork 为 `duduhel/pdfium` 的 `huiwen-dev` 分支，首次同步提交记录官方源码 SHA；主项目固定子模块提交。首次构建会准备 DEPS 锁定的 Git 依赖、GN 和 Clang，之后由 Ninja 增量编译当前工作树，不重置用户的源码修改：
 
 ```sh
 git submodule update --init third_party/pdfium/source
@@ -465,7 +469,7 @@ Python HNP 的运行时路径仍按下文配置，本次 Qt/CEF 自动准备不�
 首次克隆时连同固定版本的 MarkItDown 子模块一起下载：
 
 ```sh
-git clone --recurse-submodules https://github.com/xristosstarnetgames439-del/HuiwenMCP.git HuiWenMCP
+git clone --recurse-submodules https://github.com/duduhel/HuiwenMCP.git HuiWenMCP
 cd HuiWenMCP
 git submodule status third_party/markitdown/source
 ```
@@ -521,7 +525,7 @@ hvigorw assembleHap --mode module -p product=default -p module=entry@default
 
 - 窗口大小和窄侧栏保持原有设置。除侧栏、外边距及分区间距外，介绍区与主区域使用 `layoutWeight(3)` / `layoutWeight(7)` 分配宽度，主区域取消固定 360vp 宽度。
 - “开始使用”下三个入口保持等宽列布局，浅灰正方形边长为所在列宽的 50%，即上一版方块边长的一半；方块内只放居中的 SVG，文档预览、文档编辑、文档转化名称以普通字重显示在方块外下方。`HomeFeatureCard` 只负责显示和点击事件，`HomePage` 保存当前功能选项。
-- 点击入口后，按 `docs/自定义弹窗模版.md` 使用 `getUIContext().getPromptAction().openCustomDialog()` 打开居中的独立格式选择子窗口，采用 `showInSubWindow: true`、`isModal: false` 的组合（该接口禁止子窗口同时启用模态，也不支持 `CustomDialogController` 的 `customStyle` 参数）；首页保存返回的弹窗 ID，通过 `closeCustomDialog(id)` 统一关闭，并处理打开失败、外部取消及首页退出期间的异步清理。系统背板与内容组件 `HomeFormatDialog` 共用 `HOME_FORMAT_DIALOG_WIDTH = 360`，内外宽度统一固定为 360vp，不再使用 90% 限制；高度随内容。只由系统背板绘制浅灰背景、16vp 圆角和阴影，关闭背景模糊，内部保持透明，避免宽度不一致留下透明空白。三个弹窗共用内容布局，内容居中；左右及底部内边距为 24vp，顶部为 40vp，为右上角关闭按钮留位；格式选项自身内边距为 12vp，转换入口使用透明背景，不再额外叠加白底和边框。弹窗不在首页内展开或预留面板高度，右上角仅保留 28×28vp 关闭按钮，内含 18×18vp 的 × SVG，也可点击外部取消。预览窗口的 Word（DOCX）、PDF、MD 入口打开对应单栏 Qt 工作区，由工作区选择文件；编辑窗口仍只展示格式；转化窗口展示 PDF→MD 组合图标入口。点击该入口后由 `HomeFormatDialog.onConvertRequested` 通知首页，关闭子窗口成功后再启动现有 Qt 工作区，仍在 Qt 窗口就绪后结束首页 Ability。启动期间禁用重复操作，失败显示错误。
+- 点击入口后，使用 `getUIContext().getPromptAction().openCustomDialog()` 打开居中的独立格式选择子窗口，采用 `showInSubWindow: true`、`isModal: false` 的组合（该接口禁止子窗口同时启用模态，也不支持 `CustomDialogController` 的 `customStyle` 参数）；首页保存返回的弹窗 ID，通过 `closeCustomDialog(id)` 统一关闭，并处理打开失败、外部取消及首页退出期间的异步清理。系统背板与内容组件 `HomeFormatDialog` 共用 `HOME_FORMAT_DIALOG_WIDTH = 360`，内外宽度统一固定为 360vp，不再使用 90% 限制；高度随内容。只由系统背板绘制浅灰背景、16vp 圆角和阴影，关闭背景模糊，内部保持透明，避免宽度不一致留下透明空白。三个弹窗共用内容布局，内容居中；左右及底部内边距为 24vp，顶部为 40vp，为右上角关闭按钮留位；格式选项自身内边距为 12vp，转换入口使用透明背景，不再额外叠加白底和边框。弹窗不在首页内展开或预留面板高度，右上角仅保留 28×28vp 关闭按钮，内含 18×18vp 的 × SVG，也可点击外部取消。预览窗口的 Word（DOCX）、PDF、MD 入口打开对应单栏 Qt 工作区，由工作区选择文件；Markdown 编辑入口打开对应工作区，Word 与 PDF 编辑仍未开放；转化窗口展示 PDF→MD 组合图标入口。点击该入口后由 `HomeFormatDialog.onConvertRequested` 通知首页，关闭子窗口成功后再启动现有 Qt 工作区，仍在 Qt 窗口就绪后结束首页 Ability。启动期间禁用重复操作，失败显示错误。
 - `HomeFormatDialog` 通过 `title` 参数接收首页传入的标题，预览为“请选择要预览的格式”，编辑为“请选择要编辑的格式”，转化为“请选择要转化的格式”。标题以 18vp 普通字重显示在内容左上方，与格式选项间隔 16vp；保留右上角关闭按钮、360vp 内外统一宽度及原有背景设置。
 - 功能 SVG 使用 Feather `book-open`、`edit-3`、`repeat`，转化方向使用 `arrow-right`，弹窗关闭使用 `x`，许可随 `rawfile/licenses/feather-icons-LICENSE.txt` 分发。格式 PNG 原样复用 Qt 已有图标，来源见 [文件格式图标说明](qt_app/resources/file-icons/README.md)。所有图标从应用资源加载，无需运行时下载。
 
