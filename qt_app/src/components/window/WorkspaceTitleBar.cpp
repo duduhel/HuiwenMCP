@@ -2,12 +2,13 @@
 #include "cust/framelesswidget.h"
 #include <QEvent>
 #include <QHBoxLayout>
-#include <QLabel>
 #include <QIcon>
 #include <QImage>
+#include <QLabel>
 #include <QPainter>
 
-namespace {
+namespace
+{
 QIcon windowControlIcon(const QString &path, const QSize &size)
 {
     const QImage source(path);
@@ -27,15 +28,15 @@ QIcon windowControlIcon(const QString &path, const QSize &size)
                       source.copy(ink));
     painter.end();
     // QIcon 的默认位图引擎只缩小图像，提前按按钮的目标尺寸缩放。
-    return QIcon(QPixmap::fromImage(image.scaled(size, Qt::KeepAspectRatio, Qt::SmoothTransformation)));
+    return QIcon(
+        QPixmap::fromImage(image.scaled(size, Qt::KeepAspectRatio, Qt::SmoothTransformation)));
 }
-}
+} // namespace
 
 #include <QToolButton>
 
 WorkspaceTitleBar::WorkspaceTitleBar(QWidget *window)
-    : QWidget(window), window_(window),
-      title_(new QLabel(window->windowTitle(), this))
+    : QWidget(window), window_(window), title_(new QLabel(window->windowTitle(), this))
 {
     setObjectName(QStringLiteral("workspaceTitleBar"));
     setAttribute(Qt::WA_StyledBackground);
@@ -55,9 +56,10 @@ WorkspaceTitleBar::WorkspaceTitleBar(QWidget *window)
     layout->setSpacing(0);
     title_->setMinimumWidth(0);
     layout->addWidget(title_, 1);
-    new FramelessWidget(window_, title_);
+    auto *windowActions = new FramelessWidget(window_, title_);
     const QSize iconSize(22, 22);
-    const auto makeButton = [this, layout, iconSize](const QString &name, const QString &icon) {
+    const auto makeButton = [this, layout, iconSize](const QString &name, const QString &icon)
+    {
         auto *button = new QToolButton(this);
         button->setFixedSize(48, buttonHeight);
         button->setIconSize(iconSize);
@@ -67,17 +69,15 @@ WorkspaceTitleBar::WorkspaceTitleBar(QWidget *window)
         layout->addWidget(button);
         return button;
     };
-    maximize_ = makeButton(QStringLiteral("最大化"), QStringLiteral(":/window-controls/maximize.png"));
-    minimize_ = makeButton(QStringLiteral("最小化"), QStringLiteral(":/window-controls/minimize.png"));
-    auto *close = makeButton(QStringLiteral("关闭工作区"), QStringLiteral(":/window-controls/close.png"));
+    maximize_ =
+        makeButton(QStringLiteral("最大化"), QStringLiteral(":/window-controls/maximize.png"));
+    auto *minimize =
+        makeButton(QStringLiteral("最小化"), QStringLiteral(":/window-controls/minimize.png"));
+    auto *close =
+        makeButton(QStringLiteral("关闭工作区"), QStringLiteral(":/window-controls/close.png"));
     close->setObjectName(QStringLiteral("closeWindow"));
-    connect(minimize_, &QToolButton::clicked, window_, &QWidget::showMinimized);
-    connect(maximize_, &QToolButton::clicked, window_, [window] {
-        if (window->isMaximized() || window->isFullScreen())
-            window->showNormal();
-        else
-            window->showMaximized();
-    });
+    connect(minimize, &QToolButton::clicked, window_, &QWidget::showMinimized);
+    connect(maximize_, &QToolButton::clicked, windowActions, &FramelessWidget::toggleMaximized);
     connect(close, &QToolButton::clicked, this, &WorkspaceTitleBar::closeRequested);
     window_->installEventFilter(this);
     updateWindowState();
@@ -96,7 +96,8 @@ void WorkspaceTitleBar::updateWindowState()
 
 bool WorkspaceTitleBar::eventFilter(QObject *watched, QEvent *event)
 {
-    if (watched == window_) {
+    if (watched == window_)
+    {
         if (event->type() == QEvent::WindowStateChange)
             updateWindowState();
         if (event->type() == QEvent::WindowTitleChange)

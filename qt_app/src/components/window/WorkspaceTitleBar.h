@@ -8,16 +8,17 @@ class WorkspaceTitleBar : public QWidget
 {
     Q_OBJECT
 
-public:
+  public:
     explicit WorkspaceTitleBar(QWidget *window);
-signals:
+  signals:
     void closeRequested();
-protected:
+
+  protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
-private:
+
+  private:
     void updateWindowState();
     QWidget *window_;
     QLabel *title_;
-    QToolButton *minimize_;
     QToolButton *maximize_;
 };
