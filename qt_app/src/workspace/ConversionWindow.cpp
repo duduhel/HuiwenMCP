@@ -6,6 +6,7 @@
 #include "components/functionBar/FunctionBar.h"
 #include "components/functionBar/ModeMenu.h"
 #include "components/splitter/WorkspaceSplitter.h"
+#include "components/window/WorkspaceTitleBar.h"
 #include "dialogs/ModeSwitchDialog.h"
 #include "documentView/DocumentView.h"
 #include "documentView/renderers/markdown/MarkdownPreviewWidget.h"
@@ -45,6 +46,8 @@ ConversionWindow::ConversionWindow(const QString &mode, const QString &kind, QWi
       conversion_(new ConversionService(this)), sandbox_(new SandboxService(this)),
       status_(new QLabel(this))
 {
+    if (taskMode_ == "convert")
+        setWindowFlag(Qt::FramelessWindowHint);
     setMinimumSize(640, 480);
     setAutoFillBackground(true);
     QPalette colors = palette();
@@ -60,6 +63,13 @@ ConversionWindow::ConversionWindow(const QString &mode, const QString &kind, QWi
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
+    if (taskMode_ == "convert")
+    {
+        auto *titleBar = new WorkspaceTitleBar(this);
+        layout->addWidget(titleBar);
+        // 复用 closeEvent，保留模式切换保护、编辑确认和首页交接流程。
+        connect(titleBar, &WorkspaceTitleBar::closeRequested, this, &QWidget::close);
+    }
     layout->addWidget(functionBar_);
     splitter_->installEventFilter(this);
     bodySplitter_->addWidget(navigationSidebar_);

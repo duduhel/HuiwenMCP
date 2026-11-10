@@ -12,4 +12,10 @@
     <qresource prefix="/branding">
         <file alias="app_icon.png">branding/app_icon.png</file>
     </qresource>
+    <qresource prefix="/window-controls">
+        <file alias="minimize.png">window-controls/minimize.png</file>
+        <file alias="maximize.png">window-controls/maximize.png</file>
+        <file alias="recover.png">window-controls/recover.png</file>
+        <file alias="close.png">window-controls/close.png</file>
+    </qresource>
 </RCC>

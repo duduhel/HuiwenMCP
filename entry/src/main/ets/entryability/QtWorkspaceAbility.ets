@@ -93,6 +93,39 @@ export default class QtWorkspaceAbility extends UIAbility {
     return new LocalStorage();
   }
 
+  private hideSystemWindowControls(target: window.Window): void {
+    if (this.mode !== DocumentMode.Convert) {
+      return;
+    }
+    try {
+      target.setWindowDecorVisible(false);
+      target.setWindowTitleButtonVisible(false, false, false);
+    } catch (error) {
+      hilog.warn(0xFF00, 'QtWorkspace', '隐藏系统窗口按钮失败：%{public}s',
+        (error as BusinessError).message);
+    }
+  }
+
+  private async refreshWindowControls(): Promise<void> {
+    if (this.mode !== DocumentMode.Convert || this.destroyed || this.closing) {
+      return;
+    }
+    try {
+      // QPA 创建的 Qt 窗口可能不同于 WindowStage 主窗，曝光后同步实际顶层窗口。
+      const current = await window.getLastWindow(this.context);
+      if (!this.destroyed && !this.closing) {
+        this.hideSystemWindowControls(current);
+      }
+    } catch (error) {
+      hilog.warn(0xFF00, 'QtWorkspace', '获取工作区窗口失败：%{public}s',
+        (error as BusinessError).message);
+    }
+  }
+
+  onForeground(): void {
+    this.refreshWindowControls();
+  }
+
   onWindowStageCreate(windowStage: window.WindowStage): void {
     try {
       // 任一工作区均可原地切入 PDF 转化，统一准备内置业务包；命中缓存时不重复部署。
@@ -102,6 +135,9 @@ export default class QtWorkspaceAbility extends UIAbility {
       });
       // 先挂接 QPA 宿主，再通知 Qt 创建对应的新窗体。
       qpa.startQtApplication(this);
+      if (this.mode === DocumentMode.Convert) {
+        this.hideSystemWindowControls(windowStage.getMainWindowSync());
+      }
       this.session.attachWorkspace(this.mode, this.kind, {
         onReady: (): Promise<void> => this.workspaceShown(),
         onReturnHome: (): Promise<void> => this.returnHome(),
@@ -123,6 +159,8 @@ export default class QtWorkspaceAbility extends UIAbility {
   }
 
   private async workspaceShown(): Promise<void> {
+    if (this.destroyed || this.closing) { return; }
+    await this.refreshWindowControls();
     if (this.destroyed || this.closing) { return; }
     this.workspaceReady = true;
     hilog.info(0xFF00, 'QtWorkspace', 'HUIWEN_QT_READY');
