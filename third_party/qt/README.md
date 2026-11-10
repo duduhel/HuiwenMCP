@@ -7,6 +7,15 @@
 包版本、下载地址、文件哈希见 `third_party/prebuilt/manifest.json`，发布及离线使用说明见
 `third_party/prebuilt/README.md`。本地依赖与锁定包不一致时会停止，不覆盖自定义 Qt。
 
+## SVG 图标运行依赖
+
+窗口三键通过 `QIcon` 直接加载 SVG。同一套 Qt 5.15.12 SDK 的 `libQt5Svg.so` 和
+`libplugins_iconengines_qsvgicon.so` 直接保存在 `entry/libs/arm64-v8a/`，并单独放行 Git 忽略规则；
+其余 Qt 库与固定包逐一核对 SHA-256 一致。
+Hvigor 自动将这两个库收集到 HAP，Qt 运行时发现 SVG 图标引擎，无需额外复制任务或 CMake 链接项。
+其他 Qt 依赖仍由已发布固定包恢复。升级 Qt 时应同时替换这两个匹配版本的库；许可沿用配套 Qt LGPL 材料。
+桌面构建使用宿主 Qt 自带的 SVG 图标插件。
+
 维护者从原始 SDK 首次制包或升级版本时执行：
 
 ```sh

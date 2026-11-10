@@ -5,8 +5,11 @@
 /docs/项目开发记录/
 # 本机签名配置由安全模板复制生成，不进入 Git。
 /build-profile.json5
-# 鸿蒙端原生库由源码构建，保留本机旧 Qt 运行库但不推送。
-/entry/libs/
+# 原生库默认忽略；仅提交同一套 Qt SDK 的两个 SVG 运行库。
+/entry/libs/**
+!/entry/libs/arm64-v8a/
+!/entry/libs/arm64-v8a/libQt5Svg.so
+!/entry/libs/arm64-v8a/libplugins_iconengines_qsvgicon.so
 # 项目内 Qt 开发依赖及 PDFium 构建工具/缓存，由准备脚本生成。
 /third_party/qt/bin/
 /third_party/qt/include/

@@ -11,6 +11,7 @@ def check_hap(path: Path) -> None:
     libraries = [
         "libhuiwen_native.so", "libhuiwen_qt.so", "libQt5Core.so", "libQt5Gui.so",
         "libQt5Widgets.so", "libQt5Concurrent.so", "libplugins_platforms_qopenharmony.so",
+        "libQt5Svg.so", "libplugins_iconengines_qsvgicon.so",
         "libpdfium.so",
     ]
     with zipfile.ZipFile(path) as hap:
@@ -46,7 +47,7 @@ def check_hap(path: Path) -> None:
             assert any(entry.startswith(prefix) and "LICENSE" in entry for entry in hap.namelist()), name
         for name in ("huiwen-word.js", "huiwen-word.css", "preview.html", "THIRD_PARTY_LICENSES.txt", "build.json"):
             assert len(hap.read(f"resources/rawfile/word/{name}")) > 0, f"Word 预览缺少资源：{name}"
-    print("HAP_CHECK_OK: 8 个 ARM64 原生库、两个 Ability、Python／DOC 转换 HNP、业务 pyz、Word 资源与许可材料")
+    print("HAP_CHECK_OK: 10 个 ARM64 原生库、两个 Ability、Python／DOC 转换 HNP、业务 pyz、Word 资源与许可材料")
 
 
 if __name__ == "__main__":

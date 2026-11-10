@@ -1,97 +1,156 @@
 #include "WorkspaceTitleBar.h"
 #include "cust/framelesswidget.h"
+#include <QCursor>
 #include <QEvent>
 #include <QHBoxLayout>
 #include <QIcon>
-#include <QImage>
 #include <QLabel>
-#include <QPainter>
+#include <QScreen>
+#include <QStyle>
 #include <QToolButton>
-
-namespace
-{
-QIcon windowControlIcon(const QString &path, const QSize &size)
-{
-    const QImage source(path);
-    QRect ink;
-    int maxAlpha = 0;
-    for (int y = 0; y < source.height(); ++y)
-        for (int x = 0; x < source.width(); ++x)
-        {
-            const int alpha = qAlpha(source.pixel(x, y));
-            if (alpha > 0)
-                ink = ink.united(QRect(x, y, 1, 1));
-            maxAlpha = qMax(maxAlpha, alpha);
-        }
-    if (ink.isEmpty())
-        return QIcon(path);
-    // 去除 SDK 图片的透明外边距，最小化横线仍保持原来的宽高比。
-    const int side = qMax(ink.width(), ink.height());
-    QImage image(side, side, QImage::Format_ARGB32_Premultiplied);
-    image.fill(Qt::transparent);
-    QPainter painter(&image);
-    painter.drawImage(QPoint((side - ink.width()) / 2, (side - ink.height()) / 2),
-                      source.copy(ink));
-    painter.end();
-    // SDK 失焦 PNG 的主体透明度只有 40%；恢复实心黑色，按比例保留边缘抗锯齿。
-    for (int y = 0; y < image.height(); ++y)
-        for (int x = 0; x < image.width(); ++x)
-            image.setPixel(x, y, qRgba(0, 0, 0, qAlpha(image.pixel(x, y)) * 255 / maxAlpha));
-    // QIcon 的默认位图引擎只缩小图像，提前按按钮的目标尺寸缩放。
-    return QIcon(
-        QPixmap::fromImage(image.scaled(size, Qt::KeepAspectRatio, Qt::SmoothTransformation)));
-}
-} // namespace
+#include <QVariant>
+#ifdef Q_OS_OPENHARMONY
+#include <multimodalinput/oh_input_manager.h>
+#include <window_manager/oh_display_manager.h>
+#endif
 
 WorkspaceTitleBar::WorkspaceTitleBar(QWidget *window)
     : QWidget(window), window_(window), title_(new QLabel(window->windowTitle(), this))
 {
     setObjectName(QStringLiteral("workspaceTitleBar"));
     setAttribute(Qt::WA_StyledBackground);
-    constexpr int buttonHeight = 40;
-    constexpr int topInset = 12;
-    constexpr int rightInset = 16;
-    setFixedHeight(buttonHeight + topInset);
-    setStyleSheet(QStringLiteral(
-        "#workspaceTitleBar { background: transparent; }"
-        "#workspaceTitleBar QLabel { background: transparent; color: #000000; "
-        "padding-left: 16px; font-size: 16px; font-weight: bold; }"
-        "#workspaceTitleBar QToolButton { border: none; background: transparent; }"
-        "#workspaceTitleBar QToolButton:hover { background: #DCE1E8; }"
-        "#workspaceTitleBar QToolButton#closeWindow:hover { background: #E86969; }"));
     auto *layout = new QHBoxLayout(this);
-    // 给鸿蒙小窗口右上角的系统缩放热区留出空间。
-    layout->setContentsMargins(0, topInset, rightInset, 0);
     layout->setSpacing(0);
     title_->setMinimumWidth(0);
     title_->setTextFormat(Qt::RichText);
     title_->setTextInteractionFlags(Qt::NoTextInteraction);
     layout->addWidget(title_, 1);
     auto *windowActions = new FramelessWidget(window_, title_);
-    const QSize iconSize(28, 28);
-    const auto makeButton = [this, layout, iconSize](const QString &name, const QString &icon)
+    const auto makeButton = [this, layout](const QString &name)
     {
         auto *button = new QToolButton(this);
-        button->setFixedSize(48, buttonHeight);
-        button->setIconSize(iconSize);
-        button->setIcon(windowControlIcon(icon, iconSize));
-        button->setToolTip(name);
         button->setAccessibleName(name);
+        button->setProperty("titleBarHover", false);
+        button->installEventFilter(this);
         layout->addWidget(button);
         return button;
     };
-    maximize_ =
-        makeButton(QStringLiteral("最大化"), QStringLiteral(":/window-controls/maximize.png"));
-    auto *minimize =
-        makeButton(QStringLiteral("最小化"), QStringLiteral(":/window-controls/minimize.png"));
-    auto *close =
-        makeButton(QStringLiteral("关闭工作区"), QStringLiteral(":/window-controls/close.png"));
-    close->setObjectName(QStringLiteral("closeWindow"));
-    connect(minimize, &QToolButton::clicked, window_, &QWidget::showMinimized);
+    maximize_ = makeButton(QStringLiteral("最大化"));
+    minimize_ = makeButton(QStringLiteral("最小化"));
+    close_ = makeButton(QStringLiteral("关闭工作区"));
+    close_->setObjectName(QStringLiteral("closeWindow"));
+    connect(minimize_, &QToolButton::clicked, window_, &QWidget::showMinimized);
     connect(maximize_, &QToolButton::clicked, windowActions, &FramelessWidget::toggleMaximized);
-    connect(close, &QToolButton::clicked, this, &WorkspaceTitleBar::closeRequested);
+    connect(close_, &QToolButton::clicked, this, &WorkspaceTitleBar::closeRequested);
+    hoverTimer_.setInterval(50);
+    connect(&hoverTimer_, &QTimer::timeout, this, &WorkspaceTitleBar::refreshHover);
     window_->installEventFilter(this);
+    updateMetrics();
+}
+
+void WorkspaceTitleBar::updateMetrics()
+{
+    qreal fontScale = 1;
+#ifdef Q_OS_OPENHARMONY
+    float density = 1, scaledDensity = 1;
+    OH_NativeDisplayManager_GetDefaultDisplayDensityPixels(&density);
+    OH_NativeDisplayManager_GetDefaultDisplayScaledDensity(&scaledDensity);
+    uint64_t defaultId = 0;
+    OH_NativeDisplayManager_GetDefaultDisplayId(&defaultId);
+    displayId_ = static_cast<qint32>(defaultId);
+    NativeDisplayManager_DisplaysInfo *displays = nullptr;
+    if (OH_NativeDisplayManager_CreateAllDisplays(&displays) == DISPLAY_MANAGER_OK && displays)
+    {
+        for (uint32_t i = 0; i < displays->displaysLength; ++i)
+        {
+            const auto &display = displays->displaysInfo[i];
+            if (QString::fromLocal8Bit(display.name) == window_->screen()->name())
+            {
+                density = display.densityPixels;
+                scaledDensity = display.scaledDensity;
+                displayId_ = static_cast<qint32>(display.id);
+                break;
+            }
+        }
+        OH_NativeDisplayManager_DestroyAllDisplays(displays);
+    }
+    // ArkUI 使用 vp/fp；除去 Qt 已应用的像素比，避免再次缩放。
+    scale_ = (density > 0 ? density : 1) / window_->devicePixelRatioF();
+    fontScale = (scaledDensity > 0 ? scaledDensity : 1) / window_->devicePixelRatioF();
+#endif
+    const auto vp = [this](qreal value) { return qRound(value * scale_); };
+    const int barHeight = vp(37), inset = vp(6);
+    const int buttonWidth = vp(48), buttonHeight = barHeight - 2 * inset;
+    const int leftPadding = (buttonWidth - buttonHeight) / 2;
+    const int rightPadding = buttonWidth - buttonHeight - leftPadding;
+    setFixedHeight(barHeight);
+    // 保留系统缩放热区的避让，同时让按钮上下边距相等。
+    layout()->setContentsMargins(0, inset, vp(16), inset);
+    setStyleSheet(
+        QStringLiteral(
+            "#workspaceTitleBar { background: transparent; }"
+            "#workspaceTitleBar QLabel { background: transparent; color: #000000; "
+            "padding-left: %1px; font-size: %2px; font-weight: bold; }"
+            "#workspaceTitleBar QToolButton { border: none; background: transparent; "
+            "padding: 0px %4px 0px %3px; background-origin: content; background-clip: content; }"
+            "#workspaceTitleBar QToolButton[titleBarHover=\"true\"] { background-color: #DCE1E8; }"
+            "#workspaceTitleBar QToolButton#closeWindow[titleBarHover=\"true\"] "
+            "{ background-color: #E86969; }")
+            .arg(vp(16))
+            .arg(qRound(16 * fontScale))
+            .arg(leftPadding)
+            .arg(rightPadding));
+    const QSize iconSize(vp(20), vp(20));
+    for (auto *button : {maximize_, minimize_, close_})
+    {
+        button->setFixedSize(buttonWidth, buttonHeight);
+        button->setIconSize(iconSize);
+    }
+    minimize_->setIcon(QIcon(QStringLiteral(":/window-controls/minimize.svg")));
+    close_->setIcon(QIcon(QStringLiteral(":/window-controls/close.svg")));
     updateWindowState();
+}
+
+void WorkspaceTitleBar::refreshHover()
+{
+    bool valid = isVisible() && window_->isActiveWindow();
+    QPoint position;
+#ifdef Q_OS_OPENHARMONY
+    // QCursor 在 CEF 原生区域内可能不再更新，直接查询系统鼠标位置。
+    int32_t displayId = -1;
+    double x = 0, y = 0;
+    valid = valid && OH_Input_GetPointerLocation(&displayId, &x, &y) == INPUT_SUCCESS &&
+            displayId == displayId_;
+    if (valid)
+        position = window_->screen()->geometry().topLeft() +
+                   QPoint(qRound(x / window_->devicePixelRatioF()),
+                          qRound(y / window_->devicePixelRatioF()));
+#else
+    position = QCursor::pos();
+#endif
+    bool hovered = false, changed = false;
+    for (auto *button : {maximize_, minimize_, close_})
+    {
+        const bool inside = valid && button->rect().contains(button->mapFromGlobal(position));
+        hovered = hovered || inside;
+        if (button->property("titleBarHover").toBool() == inside)
+            continue;
+        button->setProperty("titleBarHover", inside);
+        button->style()->unpolish(button);
+        button->style()->polish(button);
+        button->update();
+        changed = true;
+    }
+    if (changed)
+        window_->update(QRect(mapTo(window_, QPoint()), size()));
+    // 仅悬停在三键期间检查；离开、失焦或隐藏后停止。
+    if (hovered)
+    {
+        if (!hoverTimer_.isActive())
+            hoverTimer_.start();
+    }
+    else
+        hoverTimer_.stop();
 }
 
 void WorkspaceTitleBar::updateWindowState()
@@ -100,17 +159,18 @@ void WorkspaceTitleBar::updateWindowState()
     // 与首页使用同一品牌素材；图标和文字仍共用原有拖动／双击区域。
     const QString branding =
         restore ? QStringLiteral(
-                      "<img src=\":/branding/harmonyos_logo.png\" width=\"108\" height=\"20\" "
+                      "<img src=\":/branding/harmonyos_logo.png\" width=\"%1\" height=\"%2\" "
                       "style=\"vertical-align: middle;\"> &nbsp;×&nbsp; ")
-                : QStringLiteral("<img src=\":/branding/app_icon.png\" width=\"20\" height=\"20\" "
-                                 "style=\"vertical-align: middle;\"> &nbsp;");
+                      .arg(qRound(108 * scale_))
+                      .arg(qRound(20 * scale_))
+                : QStringLiteral("<img src=\":/branding/app_icon.png\" width=\"%1\" height=\"%1\" "
+                                 "style=\"vertical-align: middle;\"> &nbsp;")
+                      .arg(qRound(20 * scale_));
     title_->setText(branding + window_->windowTitle().toHtmlEscaped());
     title_->setAccessibleName(window_->windowTitle());
     const QString text = restore ? QStringLiteral("还原") : QStringLiteral("最大化");
-    const QString iconPath = restore ? QStringLiteral(":/window-controls/recover.png")
-                                     : QStringLiteral(":/window-controls/maximize.png");
-    maximize_->setIcon(windowControlIcon(iconPath, maximize_->iconSize()));
-    maximize_->setToolTip(text);
+    maximize_->setIcon(QIcon(restore ? QStringLiteral(":/window-controls/recover.svg")
+                                     : QStringLiteral(":/window-controls/maximize.svg")));
     maximize_->setAccessibleName(text);
 }
 
@@ -121,6 +181,19 @@ bool WorkspaceTitleBar::eventFilter(QObject *watched, QEvent *event)
         if (event->type() == QEvent::WindowStateChange ||
             event->type() == QEvent::WindowTitleChange)
             updateWindowState();
+        if (event->type() == QEvent::Show || event->type() == QEvent::ScreenChangeInternal ||
+            event->type() == QEvent::ApplicationFontChange)
+            updateMetrics();
+        if (event->type() == QEvent::WindowActivate || event->type() == QEvent::WindowDeactivate ||
+            event->type() == QEvent::Hide || event->type() == QEvent::WindowStateChange)
+            refreshHover();
+    }
+    else if (watched == maximize_ || watched == minimize_ || watched == close_)
+    {
+        if (event->type() == QEvent::ToolTip)
+            return true;
+        if (event->type() == QEvent::Enter || event->type() == QEvent::Leave)
+            refreshHover();
     }
     return QWidget::eventFilter(watched, event);
 }

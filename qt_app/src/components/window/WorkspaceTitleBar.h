@@ -1,4 +1,5 @@
 #pragma once
+#include <QTimer>
 #include <QWidget>
 class QLabel;
 class QToolButton;
@@ -17,8 +18,17 @@ class WorkspaceTitleBar : public QWidget
     bool eventFilter(QObject *watched, QEvent *event) override;
 
   private:
+    void updateMetrics();
+    void refreshHover();
     void updateWindowState();
     QWidget *window_;
     QLabel *title_;
-    QToolButton *maximize_;
+    QToolButton *maximize_ = nullptr;
+    QToolButton *minimize_ = nullptr;
+    QToolButton *close_ = nullptr;
+    QTimer hoverTimer_;
+    qreal scale_ = 1;
+#ifdef Q_OS_OPENHARMONY
+    qint32 displayId_ = -1;
+#endif
 };
