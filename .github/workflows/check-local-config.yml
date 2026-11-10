@@ -1,0 +1,16 @@
+name: Check local configuration
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  check-local-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Reject tracked local configuration and signing files
+        run: python3 .github/scripts/check_local_config.py

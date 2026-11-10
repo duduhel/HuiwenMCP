@@ -6,6 +6,23 @@ A document reading, Markdown editing and format conversion project for **OpenHar
 
 Read source documents, compare PDF-to-Markdown results side by side, edit Markdown, and resume work from recent tasks.
 
+## First open in DevEco Studio
+
+**Initialize local configuration before opening the project.** On macOS, double-click `初始化项目.command` in the repository root, or run:
+
+```sh
+cd /your/path/HuiwenMCP
+bash 初始化项目.command
+```
+
+The script creates the root `build-profile.json5` from the unsigned `build-profile.example.json5` only when absent. Existing configuration and personal signing settings are preserved; initialization is needed only once. It does not initialize source submodules or prepare build dependencies.
+
+Open the **repository root**, not `entry/` or `qt_app/`. The project configuration version is `6.1.1`, with target and compatible SDK `6.1.1(24)`; use a compatible DevEco Studio and SDK. Configure your own signing in the IDE when deploying to a device. Personal signing is not needed to recognize the project.
+
+For `Cannot Open Project / Select an OpenHarmony or HarmonyOS project`, first check the selected directory and the generated root `build-profile.json5`, then IDE/SDK compatibility. Dependency setup, compilation and device signing happen later.
+
+Local `build-profile.json5`, `local.properties` and signing materials are Git-ignored; only the unsigned template is shared. Never force-add local configuration or certificates. CI rejects tracked local configuration, common signing-file extensions and signing fields in the template. This is not a comprehensive secret scanner and cannot prevent an initial push of sensitive files. To block merging a failing PR, make `check-local-config` a required branch-protection check; adding the workflow alone does not configure that remote rule.
+
 ## Screenshots
 
 ### HarmonyOS PC home

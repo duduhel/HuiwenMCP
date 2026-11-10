@@ -6,7 +6,24 @@
 
 汇文MCP 将 PDF、Markdown 与 Word 文档集中到同一个桌面工作区：阅读原文、对照转换结果、编辑 Markdown，再从最近工作区继续处理文件。项目采用 ArkTS 首页与 Qt 工作区，集成 CEF 浏览器内核、PDFium 和 Python HNP，源码公开，供学习交流、教学参考与协作开发。
 
-[界面预览](#界面预览) · [核心功能](#核心功能) · [开发与构建](#克隆后先初始化第三方源码) · [第三方维护规则](third_party/README.md) · [许可证](#许可证)
+[界面预览](#界面预览) · [核心功能](#核心功能) · [首次打开](#首次打开项目) · [开发与构建](#克隆后先初始化第三方源码) · [第三方维护规则](third_party/README.md) · [许可证](#许可证)
+
+## 首次打开项目
+
+**克隆后先初始化本机配置，再用 DevEco Studio 打开工程。** macOS 可双击项目根目录的 `初始化项目.command`，也可以在终端执行：
+
+```sh
+cd /你的路径/HuiwenMCP
+bash 初始化项目.command
+```
+
+脚本仅在根目录 `build-profile.json5` 不存在时，从不含签名的 `build-profile.example.json5` 生成配置；重复执行保留已有文件，不覆盖个人签名。首次执行一次即可，后续打开无需重复。脚本只准备工程配置，第三方源码仍需按下文初始化，构建依赖也需单独准备。
+
+随后在 DevEco Studio 选择 **HuiwenMCP 根目录**，不要选择 `entry/` 或 `qt_app/`。当前工程配置版本为 `6.1.1`，目标与兼容 SDK 均为 `6.1.1(24)`，请使用兼容的 DevEco Studio 和对应 SDK。安装到设备时，再在 IDE 中配置自己的签名；打开和识别工程不需要其他人的签名。
+
+如果提示 `Cannot Open Project / Select an OpenHarmony or HarmonyOS project`，先确认选中根目录且其中已经生成 `build-profile.json5`；仍失败时再核对 IDE/SDK 版本。依赖下载、编译和设备签名是后续阶段的问题。
+
+实际 `build-profile.json5`、`local.properties` 和签名材料由 Git 忽略，公共模板可以提交。请勿使用 `git add -f` 强制加入本机配置或证书。仓库 CI 检查跟踪文件中的这些本机配置、常见证书/私钥后缀及模板签名字段，发现后失败；这不代替全面的密钥扫描，也不能阻止敏感文件先被推送到分支。只有将 `check-local-config` 设为分支保护的必需检查，才能阻止未通过的 PR 合入；本次仅提供工作流，不更改远端保护规则。
 
 ## 界面预览
 
@@ -438,7 +455,7 @@ files/
 
 ## 本地构建
 
-工程当前配置为 HarmonyOS PC、`arm64-v8a`，目标 SDK 为 `6.1.1(24)`。首次克隆后，将 `build-profile.example.json5` 复制为本机的 `build-profile.json5`，需要安装到设备时再在 DevEco Studio 配置签名。
+工程当前配置为 HarmonyOS PC、`arm64-v8a`，目标 SDK 为 `6.1.1(24)`。首次打开前先完成[本机配置初始化](#首次打开项目)，需要安装到设备时再在 DevEco Studio 配置自己的签名；不要提交实际配置与签名材料。
 
 macOS ARM64 开发机首次 Run 会按 `third_party/prebuilt/manifest.json` 下载、校验并恢复固定的
 Qt/CEF `.so`、头文件、CMake 配置、宿主工具和浏览器核心资源；后续 Run 校验本地文件后复用。

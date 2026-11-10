@@ -5,6 +5,18 @@
 /docs/项目开发记录/
 # 本机签名配置由安全模板复制生成，不进入 Git。
 /build-profile.json5
+# 本机证书、私钥及鸿蒙签名 profile，不进入 Git。
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.pem
+*.key
+*.cer
+*.crt
+*.csr
+*.p7b
+*.p8
 # 原生库默认忽略；仅提交同一套 Qt SDK 的两个 SVG 运行库。
 /entry/libs/**
 !/entry/libs/arm64-v8a/
