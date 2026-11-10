@@ -22,7 +22,11 @@ class FunctionBar : public QToolBar
     void scrollSyncChanged(bool synchronized);
     void navigationSidebarToggled(bool visible);
 
+  protected:
+    bool event(QEvent *event) override;
+
   private:
+    void updateAppearance();
     FileMenu *fileMenu_;
     ModeMenu *modeMenu_;
     QAction *synchronizedAction_ = nullptr;

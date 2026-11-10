@@ -6,12 +6,17 @@
 #include "sidebars/common/SidebarIcons.h"
 #include <QAction>
 #include <QActionGroup>
+#include <QEvent>
 #include <QFontMetrics>
 #include <QLayout>
+#include <QScreen>
 #include <QStyle>
 #include <QToolButton>
 #include <QVariant>
 #include <algorithm>
+#ifdef Q_OS_OPENHARMONY
+#include <window_manager/oh_display_manager.h>
+#endif
 
 FunctionBar::FunctionBar(const QString &mode, QWidget *parent)
     : QToolBar(parent), fileMenu_(new FileMenu(mode, this)), modeMenu_(new ModeMenu(this))
@@ -22,22 +27,8 @@ FunctionBar::FunctionBar(const QString &mode, QWidget *parent)
     setContextMenuPolicy(Qt::PreventContextMenu);
     setFixedHeight(72);
     setContentsMargins(0, 0, 0, 0);
-    setStyleSheet(QStringLiteral(
-        "QToolBar#workspaceFunctionBar { background: #F2F3F5; border: none; "
-        "margin: 0; padding: 0; spacing: 0; }"
-        "QToolBar#workspaceFunctionBar QToolButton { background: transparent; border: none; "
-        "margin: 0; padding: 0 20px; color: #34445C; font-size: 28px; font-weight: normal; }"
-        "QToolBar#workspaceFunctionBar QToolButton[selected=\"true\"] "
-        "{ background: #DCE1E8; }"
-        "QToolBar#workspaceFunctionBar QToolButton#navigationSidebarToggle "
-        "{ padding: 0; border-radius: 8px; }"
-        "QToolBar#workspaceFunctionBar QToolButton#navigationSidebarToggle:checked "
-        "{ background: #E5E5E5; }"
-        "QToolBar#workspaceFunctionBar QToolButton::menu-indicator "
-        "{ image: none; width: 0; height: 0; }"));
-    // 同时清除工具条布局的原生默认留白，按钮背景才能覆盖整个高度。
-    layout()->setContentsMargins(0, 0, 0, 0);
-    layout()->setSpacing(0);
+    setAutoFillBackground(false);
+    updateAppearance();
 
     const auto addMenuButton = [this](const QString &text, QMenu *menu)
     {
@@ -62,7 +53,9 @@ FunctionBar::FunctionBar(const QString &mode, QWidget *parent)
         button->ensurePolished();
         const int textWidth = std::max(button->fontMetrics().horizontalAdvance(text),
                                        button->fontMetrics().boundingRect(text).width());
-        button->setFixedSize(std::max(button->sizeHint().width(), textWidth + 40), height());
+        const QMargins margins = layout()->contentsMargins();
+        button->setFixedSize(std::max(button->sizeHint().width(), textWidth + 40),
+                             height() - margins.top() - margins.bottom());
         addWidget(button);
         return button;
     };
@@ -102,6 +95,61 @@ FunctionBar::FunctionBar(const QString &mode, QWidget *parent)
     auto *space = new QWidget(this);
     space->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     trailingSpacer_ = addWidget(space);
+}
+
+void FunctionBar::updateAppearance()
+{
+    qreal scale = 1;
+#ifdef Q_OS_OPENHARMONY
+    float density = 1;
+    OH_NativeDisplayManager_GetDefaultDisplayDensityPixels(&density);
+    NativeDisplayManager_DisplaysInfo *displays = nullptr;
+    if (OH_NativeDisplayManager_CreateAllDisplays(&displays) == DISPLAY_MANAGER_OK && displays)
+    {
+        for (uint32_t i = 0; i < displays->displaysLength; ++i)
+        {
+            const auto &display = displays->displaysInfo[i];
+            if (QString::fromLocal8Bit(display.name) == window()->screen()->name())
+            {
+                density = display.densityPixels;
+                break;
+            }
+        }
+        OH_NativeDisplayManager_DestroyAllDisplays(displays);
+    }
+    // 与标题栏一致：将首页的 vp 换算到 Qt 坐标，避免与 Qt 像素比重复缩放。
+    scale = (density > 0 ? density : 1) / window()->devicePixelRatioF();
+#endif
+    const int radius = qRound(24 * scale);
+    setStyleSheet(
+        QStringLiteral(
+            "QToolBar#workspaceFunctionBar { background: #F2F3F5; border: none; "
+            "border-top-left-radius: %1px; border-top-right-radius: %1px; "
+            "border-bottom-left-radius: 0px; border-bottom-right-radius: 0px; "
+            "margin: 0; padding: 0; spacing: 0; }"
+            "QToolBar#workspaceFunctionBar QToolButton { background: transparent; border: none; "
+            "border-radius: 10px; margin: 0; padding: 0 20px; "
+            "color: #34445C; font-size: 28px; font-weight: normal; }"
+            "QToolBar#workspaceFunctionBar QToolButton[selected=\"true\"] "
+            "{ background: #DCE1E8; }"
+            "QToolBar#workspaceFunctionBar QToolButton#navigationSidebarToggle "
+            "{ padding: 0; border-radius: 8px; }"
+            "QToolBar#workspaceFunctionBar QToolButton#navigationSidebarToggle:checked "
+            "{ background: #E5E5E5; }"
+            "QToolBar#workspaceFunctionBar QToolButton::menu-indicator "
+            "{ image: none; width: 0; height: 0; }")
+            .arg(radius));
+    // 工具栏保持原来的实色，仅顶部圆角缺口透出背景。
+    layout()->setContentsMargins(12, 8, 12, 8);
+    layout()->setSpacing(0);
+}
+
+bool FunctionBar::event(QEvent *event)
+{
+    if (event->type() == QEvent::Show || event->type() == QEvent::ScreenChangeInternal ||
+        event->type() == QEvent::ApplicationFontChange)
+        updateAppearance();
+    return QToolBar::event(event);
 }
 
 FileMenu *FunctionBar::fileMenu() const { return fileMenu_; }
