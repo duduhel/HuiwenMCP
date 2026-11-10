@@ -20,4 +20,8 @@
         <file alias="recover.svg">window-controls/recover.svg</file>
         <file alias="close.svg">window-controls/close.svg</file>
     </qresource>
+    <qresource prefix="/window-modes">
+        <file alias="fullscreen.svg">window-modes/fullscreen.svg</file>
+        <file alias="immersive-fullscreen.svg">window-modes/immersive-fullscreen.svg</file>
+    </qresource>
 </RCC>

@@ -5,10 +5,13 @@
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QLabel>
+#include <QMenu>
 #include <QScreen>
 #include <QStyle>
 #include <QToolButton>
+#include <QVBoxLayout>
 #include <QVariant>
+#include <QWidgetAction>
 #ifdef Q_OS_OPENHARMONY
 #include <multimodalinput/oh_input_manager.h>
 #include <window_manager/oh_display_manager.h>
@@ -39,6 +42,7 @@ WorkspaceTitleBar::WorkspaceTitleBar(QWidget *window)
         button->setAccessibleName(name);
         button->setProperty("titleBarHover", false);
         button->installEventFilter(this);
+        connect(button, &QToolButton::pressed, this, &WorkspaceTitleBar::hideMaximizeMenu);
         layout->addWidget(button);
         return button;
     };
@@ -51,12 +55,21 @@ WorkspaceTitleBar::WorkspaceTitleBar(QWidget *window)
     connect(close_, &QToolButton::clicked, this, &WorkspaceTitleBar::closeRequested);
     hoverTimer_.setInterval(50);
     connect(&hoverTimer_, &QTimer::timeout, this, &WorkspaceTitleBar::refreshHover);
+    maximizeMenuDelay_.setSingleShot(true);
+    maximizeMenuDelay_.setInterval(400);
+    connect(&maximizeMenuDelay_, &QTimer::timeout, this, &WorkspaceTitleBar::showMaximizeMenu);
     window_->installEventFilter(this);
     updateMetrics();
 }
 
 void WorkspaceTitleBar::updateMetrics()
 {
+    hideMaximizeMenu();
+    if (maximizeMenu_)
+    {
+        maximizeMenu_->deleteLater();
+        maximizeMenu_ = nullptr;
+    }
     qreal fontScale = 1;
 #ifdef Q_OS_OPENHARMONY
     float density = 1, scaledDensity = 1;
@@ -126,7 +139,8 @@ void WorkspaceTitleBar::updateMetrics()
 
 void WorkspaceTitleBar::refreshHover()
 {
-    bool valid = isVisible() && window_->isActiveWindow();
+    bool valid = isVisible() &&
+                 (window_->isActiveWindow() || (maximizeMenu_ && maximizeMenu_->isActiveWindow()));
     QPoint position;
 #ifdef Q_OS_OPENHARMONY
     // QCursor 在 CEF 原生区域内可能不再更新，直接查询系统鼠标位置。
@@ -148,6 +162,13 @@ void WorkspaceTitleBar::refreshHover()
         hovered = hovered || inside;
         if (button->property("titleBarHover").toBool() == inside)
             continue;
+        if (button == maximize_)
+        {
+            if (inside && !window_->isMaximized() && !window_->isFullScreen())
+                maximizeMenuDelay_.start();
+            else
+                maximizeMenuDelay_.stop();
+        }
         button->setProperty("titleBarHover", inside);
         button->style()->unpolish(button);
         button->style()->polish(button);
@@ -156,7 +177,18 @@ void WorkspaceTitleBar::refreshHover()
     }
     if (changed)
         window_->update(QRect(mapTo(window_, QPoint()), size()));
-    // 仅悬停在三键期间检查；离开、失焦或隐藏后停止。
+    if (maximizeMenu_ && maximizeMenu_->isVisible())
+    {
+        // 允许经过按钮和菜单之间的 6vp 间隙，移入菜单后继续检查原生鼠标位置。
+        const int gap = qRound(6 * scale_);
+        const QRect anchor(maximize_->mapToGlobal(QPoint()), maximize_->size());
+        if (!valid || window_->isMaximized() || window_->isFullScreen() ||
+            (!anchor.adjusted(-gap, -gap, gap, gap).contains(position) &&
+             !maximizeMenu_->frameGeometry().contains(position)))
+            hideMaximizeMenu();
+        hovered = hovered || maximizeMenu_->isVisible();
+    }
+    // 仅三键或放大菜单交互期间检查；离开、失焦或隐藏后停止。
     if (hovered)
     {
         if (!hoverTimer_.isActive())
@@ -164,6 +196,80 @@ void WorkspaceTitleBar::refreshHover()
     }
     else
         hoverTimer_.stop();
+}
+
+void WorkspaceTitleBar::showMaximizeMenu()
+{
+    // 与按钮图标保持一致：只有普通窗口、显示“放大”图标时才提供模式选择。
+    if (!isVisible() || !window_->isActiveWindow() || window_->isMaximized() ||
+        window_->isFullScreen() || !maximize_->property("titleBarHover").toBool())
+        return;
+    const auto vp = [this](qreal value) { return qRound(value * scale_); };
+    if (!maximizeMenu_)
+    {
+        maximizeMenu_ = new QMenu(this);
+        maximizeMenu_->setObjectName(QStringLiteral("windowModeMenu"));
+        maximizeMenu_->setWindowFlag(Qt::FramelessWindowHint);
+        maximizeMenu_->setAttribute(Qt::WA_TranslucentBackground);
+        maximizeMenu_->setAttribute(Qt::WA_ShowWithoutActivating);
+        maximizeMenu_->setStyleSheet(
+            QStringLiteral(
+                "QMenu#windowModeMenu { background: #F2F6FC; border: 1px solid #CFD8E5; "
+                "border-radius: %1px; padding: 0px; }"
+                "QMenu#windowModeMenu QLabel { background: transparent; padding: 0px; "
+                "color: #7D8795; font-size: %1px; font-weight: bold; }"
+                "QMenu#windowModeMenu QToolButton { background: transparent; color: #26364D; "
+                "border: 1px solid transparent; border-radius: %2px; padding: %2px; "
+                "font-size: %1px; font-weight: normal; }"
+                "QMenu#windowModeMenu QToolButton:hover, QMenu#windowModeMenu QToolButton:focus "
+                "{ background: #E3EBF7; border-color: #B5C7E2; }")
+                .arg(vp(14))
+                .arg(vp(8)));
+        auto *content = new QWidget(maximizeMenu_);
+        auto *layout = new QVBoxLayout(content);
+        layout->setContentsMargins(vp(16), vp(12), vp(16), vp(12));
+        layout->setSpacing(vp(12));
+        layout->addWidget(new QLabel(QStringLiteral("放大模式"), content));
+        auto *choices = new QHBoxLayout;
+        choices->setSpacing(vp(12));
+        for (const bool immersive : {false, true})
+        {
+            auto *choice = new QToolButton(content);
+            choice->setText(immersive ? QStringLiteral("沉浸式全屏") : QStringLiteral("全屏"));
+            choice->setAccessibleName(choice->text());
+            choice->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
+            choice->setFocusPolicy(Qt::StrongFocus);
+            choice->setFixedSize(vp(112), vp(108));
+            choice->setIconSize(QSize(vp(96), vp(64)));
+            choice->setIcon(QIcon(immersive
+                                      ? QStringLiteral(":/window-modes/immersive-fullscreen.svg")
+                                      : QStringLiteral(":/window-modes/fullscreen.svg")));
+            connect(choice, &QToolButton::clicked, this,
+                    [this, immersive]
+                    {
+                        hideMaximizeMenu();
+                        if (immersive)
+                            window_->showFullScreen();
+                        else
+                            window_->showMaximized();
+                    });
+            choices->addWidget(choice);
+        }
+        layout->addLayout(choices);
+        auto *action = new QWidgetAction(maximizeMenu_);
+        action->setDefaultWidget(content);
+        maximizeMenu_->addAction(action);
+    }
+    maximizeMenu_->popup(
+        maximize_->mapToGlobal(QPoint((maximize_->width() - maximizeMenu_->sizeHint().width()) / 2,
+                                      maximize_->height() + vp(6))));
+}
+
+void WorkspaceTitleBar::hideMaximizeMenu()
+{
+    maximizeMenuDelay_.stop();
+    if (maximizeMenu_)
+        maximizeMenu_->hide();
 }
 
 void WorkspaceTitleBar::updateWindowState()
@@ -188,6 +294,8 @@ bool WorkspaceTitleBar::eventFilter(QObject *watched, QEvent *event)
 {
     if (watched == window_)
     {
+        if (event->type() == QEvent::Move || event->type() == QEvent::Resize)
+            hideMaximizeMenu();
         if (event->type() == QEvent::WindowTitleChange)
             updateWindowState();
         if (event->type() == QEvent::Show || event->type() == QEvent::ScreenChangeInternal ||
