@@ -13,6 +13,7 @@ class WorkspaceTitleBar : public QWidget
     explicit WorkspaceTitleBar(QWidget *window);
   signals:
     void closeRequested();
+    void aboutDeviceRequested();
 
   protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -23,6 +24,7 @@ class WorkspaceTitleBar : public QWidget
     void updateWindowState();
     QWidget *window_;
     QLabel *title_;
+    QToolButton *harmonyLogo_;
     QToolButton *maximize_ = nullptr;
     QToolButton *minimize_ = nullptr;
     QToolButton *close_ = nullptr;

@@ -285,6 +285,7 @@ bool QtBridge::requestOpenTaskDirectory(const QString &path)
 {
     return post("openDirectory", {{"path", path}});
 }
+bool QtBridge::requestOpenAboutDevice() { return post("aboutDevice"); }
 bool QtBridge::notifyWorkspaceRestoreResult(const QString &taskPath, const QString &error)
 {
     return post("restoreResult", {{"taskPath", taskPath}, {"error", error}});

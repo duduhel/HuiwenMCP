@@ -91,6 +91,10 @@ ConversionWindow::ConversionWindow(const QString &mode, const QString &kind, QWi
         layout->addWidget(titleBar);
         // 复用 closeEvent，保留模式切换保护、编辑确认和首页交接流程。
         connect(titleBar, &WorkspaceTitleBar::closeRequested, this, &QWidget::close);
+#ifdef Q_OS_OPENHARMONY
+        connect(titleBar, &WorkspaceTitleBar::aboutDeviceRequested, &QtBridge::instance(),
+                &QtBridge::requestOpenAboutDevice);
+#endif
     }
     layout->addWidget(functionBar_);
     splitter_->installEventFilter(this);
@@ -347,7 +351,7 @@ void ConversionWindow::createDocumentViews(bool preview)
     if (result_)
         result_->show();
     setWindowTitle(mode_ == "edit"      ? QStringLiteral("汇文MCP · Markdown 编辑")
-                   : mode_ == "convert" ? QStringLiteral("汇文MCP · 转换工作区")
+                   : mode_ == "convert" ? QStringLiteral("汇文MCP")
                                         : QStringLiteral("汇文MCP · %1 预览")
                                               .arg(kind_ == "word" ? "Word"
                                                    : kind_ == "md" ? "Markdown"

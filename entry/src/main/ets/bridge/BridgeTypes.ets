@@ -44,6 +44,8 @@ export interface WorkspaceHandlers {
   onOpenOutputLocation: (path: string) => Promise<void>;
   // 打开任务目录：path 是待校验的任务或 input／output 目录。
   onOpenTaskDirectory: (path: string) => Promise<void>;
+  // 鸿蒙字标点击：打开系统设置的“关于本机”。
+  onOpenAboutDevice: () => Promise<void>;
 }
 
 // 截图 Ability 提供的业务处理器，在 ArkTS 线程完成历史入库、目录授权和全局提示。

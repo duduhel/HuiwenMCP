@@ -154,7 +154,8 @@ export default class QtWorkspaceAbility extends UIAbility {
         onRestoreResult: (taskPath: string, error: string): void => this.restoreCompleted(taskPath, error),
         onSelectDocument: (kind: string, mode: string): Promise<void> => this.selectDocument(kind, mode),
         onOpenOutputLocation: (path: string): Promise<void> => this.openRequestedLocation(path, false),
-        onOpenTaskDirectory: (path: string): Promise<void> => this.openRequestedLocation(path, true)
+        onOpenTaskDirectory: (path: string): Promise<void> => this.openRequestedLocation(path, true),
+        onOpenAboutDevice: (): Promise<void> => this.openAboutDevice()
       });
       hilog.info(0xFF00, 'QtWorkspace', 'HUIWEN_QT_START');
     } catch (error) {
@@ -163,6 +164,25 @@ export default class QtWorkspaceAbility extends UIAbility {
       this.context.terminateSelf().catch((failure: Error) => {
         hilog.error(0xFF00, 'QtWorkspace', '关闭失败的 Qt 窗口：%{public}s', failure.message);
       });
+    }
+  }
+
+  private async openAboutDevice(): Promise<void> {
+    if (this.destroyed || this.closing) { return; }
+    try {
+      await this.context.startAbility({
+        bundleName: 'com.huawei.hmos.settings',
+        abilityName: 'com.huawei.hmos.settings.MainAbility',
+        uri: 'about_device'
+      });
+    } catch (error) {
+      const failure = error as BusinessError;
+      hilog.warn(0xFF00, 'QtWorkspace',
+        'HUIWEN_QT_ABOUT_DEVICE_FAILED: code=%{public}d, message=%{public}s',
+        failure.code, failure.message);
+      if (this.destroyed || this.closing) { return; }
+      const current = await window.getLastWindow(this.context);
+      current.getUIContext().getPromptAction().showToast({ message: '无法打开关于本机，请从系统设置进入' });
     }
   }
 

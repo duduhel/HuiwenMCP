@@ -22,6 +22,8 @@ class QtBridge : public QObject
     bool requestOpenOutputLocation(const QString &path);
     // Qt → ArkTS：校验并打开 path 指向的任务目录；请求结果经 directoryOpenCompleted 返回。
     bool requestOpenTaskDirectory(const QString &path);
+    // Qt → ArkTS：打开系统设置的“关于本机”，与首页鸿蒙字标行为一致。
+    bool requestOpenAboutDevice();
     // Qt → ArkTS：反馈 taskPath 的实际恢复结果，error 为空表示加载及使用时间更新成功。
     bool notifyWorkspaceRestoreResult(const QString &taskPath, const QString &error);
     // Qt → ArkTS：窗口已曝光，可以结束原首页；此通知不等待文件恢复。

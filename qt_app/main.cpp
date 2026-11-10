@@ -1,4 +1,4 @@
-/* Qt Widgets 工作区入口：默认最大化，转换模式使用 cust 标题栏，预览保留系统边框，窗口实际曝光后通知鸿蒙关闭原首页。 */
+/* Qt Widgets 工作区入口：鸿蒙转换窗首次全屏，其他模式最大化，窗口曝光后通知首页。 */
 #include "workspace/ConversionWindow.h"
 #include <QApplication>
 #include <QIcon>
@@ -58,7 +58,10 @@ int main(int argc, char *argv[])
             }
             window = std::make_unique<ConversionWindow>(options.value("mode").toString(),
                                                         options.value("kind").toString());
-            window->showMaximized();
+            if (options.value("mode").toString() == "convert")
+                window->showFullScreen();
+            else
+                window->showMaximized();
             readyTimer.start();
         }
     };

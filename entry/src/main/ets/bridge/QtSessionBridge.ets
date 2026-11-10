@@ -54,6 +54,7 @@ export class QtSessionBridge {
         case 'pick': await workspace.onSelectDocument(event.kind ?? '', event.mode ?? ''); return;
         case 'open': await workspace.onOpenOutputLocation(event.path ?? ''); return;
         case 'openDirectory': await workspace.onOpenTaskDirectory(event.path ?? ''); return;
+        case 'aboutDevice': await workspace.onOpenAboutDevice(); return;
       }
     }
     const screenshot = this.screenshot;
