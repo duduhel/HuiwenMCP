@@ -29,11 +29,15 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QLabel>
+#include <QPaintEvent>
+#include <QPainter>
 #include <QResizeEvent>
+#include <QShowEvent>
 #include <QSizePolicy>
 #include <QSplitterHandle>
 #include <QTimer>
 #include <QVBoxLayout>
+#include <QWindow>
 #include <algorithm>
 #include <cmath>
 #include <exception>
@@ -60,6 +64,24 @@ ConversionWindow::ConversionWindow(const QString &mode, const QString &kind, QWi
                                  "QWidget#documentCardBackground, QWidget#documentCardViewport "
                                  "{ background-color: %1; }")
                       .arg(colors.color(QPalette::Window).name()));
+    if (taskMode_ == "convert")
+    {
+        // QWidget 与鸿蒙原生绘图节点分别取自己的背景角色，正文继续使用实色。
+        setAttribute(Qt::WA_TranslucentBackground);
+        setAutoFillBackground(false);
+        QPalette transparentColors = colors;
+        transparentColors.setColor(QPalette::Window, Qt::transparent);
+#ifdef Q_OS_OPENHARMONY
+        transparentColors.setColor(QPalette::XComponentBackground, Qt::transparent);
+#endif
+        setPalette(transparentColors);
+        setStyleSheet(styleSheet() +
+                      QStringLiteral("QWidget#conversionWindow { background: transparent; }"));
+        bodySplitter_->setPalette(colors);
+        bodySplitter_->setAutoFillBackground(true);
+        status_->setPalette(colors);
+        status_->setAutoFillBackground(true);
+    }
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
@@ -212,6 +234,7 @@ ConversionWindow::ConversionWindow(const QString &mode, const QString &kind, QWi
 // 只重建内部文档区域；主窗口、功能条、导航侧栏和任务身份一直保留。
 void ConversionWindow::createDocumentViews(bool preview)
 {
+    layoutReady_ = false;
     editor_ = livePreview_ = markdownPreview_ = nullptr;
     if (kind_ == "word")
         source_ = new DocumentView(new WordPreviewWidget,
@@ -420,6 +443,8 @@ void ConversionWindow::applyMode(const QString &mode, const QString &path,
             self->switching_ = false;
             self->refreshBusyState();
             self->refreshScrollSync();
+            // 重建可能没有改变主窗口尺寸；在本轮布局完成后同步新建的原生子节点。
+            QTimer::singleShot(0, self.data(), &ConversionWindow::synchronizeLayout);
             if (restoring && !self->restoringWord_)
                 self->sandbox_->finishRestoration(document,
                                                   loaded ? QString() : self->status_->text());
@@ -500,6 +525,52 @@ void ConversionWindow::resizeEvent(QResizeEvent *event)
     placeConvertButton();
 }
 
+void ConversionWindow::showEvent(QShowEvent *event)
+{
+    QWidget::showEvent(event);
+    QTimer::singleShot(0, this, &ConversionWindow::synchronizeLayout);
+}
+
+void ConversionWindow::paintEvent(QPaintEvent *event)
+{
+    QWidget::paintEvent(event);
+    if (!testAttribute(Qt::WA_TranslucentBackground))
+        return;
+    // 当前 QPA 的 RGBX 转 RGBA 路径未清空透明像素；先清掉旧位置，再由子控件重绘。
+    QPainter painter(this);
+    painter.setCompositionMode(QPainter::CompositionMode_Source);
+    painter.fillRect(event->rect(), Qt::transparent);
+}
+
+void ConversionWindow::synchronizeLayout()
+{
+    if (!isVisible() || switching_)
+        return;
+    layout()->activate();
+    bodySplitter_->refresh();
+    splitter_->refresh();
+#ifdef Q_OS_OPENHARMONY
+    // 原生子节点可能早于祖先布局创建，按最终布局同步到各自的最近原生父窗口。
+    for (auto *widget : findChildren<QWidget *>())
+    {
+        if (widget->window() != this || !widget->isVisible())
+            continue;
+        auto *nativeWindow = widget->windowHandle();
+        auto *nativeParent = widget->nativeParentWidget();
+        if (nativeWindow && nativeParent)
+            nativeWindow->setGeometry(QRect(widget->mapTo(nativeParent, QPoint()), widget->size()));
+    }
+#endif
+    // CEF 以工作区为父节点，祖先位置变化时也要刷新浏览器的绝对区域。
+    for (auto *preview : findChildren<CefDocumentPreviewWidget *>())
+        preview->syncGeometry();
+    splitter_->raiseAbovePreview();
+    bodySplitter_->raiseAbovePreview();
+    navigationSidebar_->raiseAbovePreview();
+    layoutReady_ = true;
+    placeConvertButton();
+}
+
 void ConversionWindow::toggleNavigationSidebar(bool visible)
 {
     auto sizes = bodySplitter_->sizes();
@@ -519,19 +590,28 @@ void ConversionWindow::toggleNavigationSidebar(bool visible)
 
 bool ConversionWindow::eventFilter(QObject *watched, QEvent *event)
 {
-    if (watched == splitter_ && event->type() == QEvent::Resize)
+    if (watched == splitter_ && (event->type() == QEvent::Resize || event->type() == QEvent::Move ||
+                                 event->type() == QEvent::LayoutRequest))
         QTimer::singleShot(0, this, [this] { placeConvertButton(); });
     return QWidget::eventFilter(watched, event);
 }
 
 void ConversionWindow::placeConvertButton()
 {
-    if (!button_ || button_->isHidden())
+    if (!button_)
         return;
-    const QPoint center = splitter_->handle(1)->mapTo(this, splitter_->handle(1)->rect().center());
+    auto *divider = splitter_->handle(1);
+    if (!layoutReady_ || !isVisible() || switching_ || result_->hasDocument() || !divider ||
+        !divider->isVisible() || splitter_->height() < button_->height() + 72)
+    {
+        button_->hide();
+        return;
+    }
+    const QPoint center = divider->mapTo(this, divider->rect().center());
     button_->move(center.x() - button_->width() / 2,
                   splitter_->mapTo(this, QPoint(0, splitter_->height())).y() - button_->height() -
                       72);
+    button_->show();
     button_->raiseAbovePreview();
 }
 
@@ -543,10 +623,7 @@ void ConversionWindow::refreshBusyState()
     functionBar_->fileMenu()->setDocumentState(document_, busy);
     functionBar_->modeMenu()->setState(mode_, document_, busy);
     if (button_)
-    {
         button_->setState(!document_.inputPath.isEmpty(), busy, retry_);
-        button_->setVisible(!switching_ && !result_->hasDocument());
-    }
     placeConvertButton();
     updateEditState();
 }

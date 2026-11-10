@@ -6,6 +6,7 @@
 #include <QImage>
 #include <QLabel>
 #include <QPainter>
+#include <QToolButton>
 
 namespace
 {
@@ -13,10 +14,15 @@ QIcon windowControlIcon(const QString &path, const QSize &size)
 {
     const QImage source(path);
     QRect ink;
+    int maxAlpha = 0;
     for (int y = 0; y < source.height(); ++y)
         for (int x = 0; x < source.width(); ++x)
-            if (qAlpha(source.pixel(x, y)) > 0)
+        {
+            const int alpha = qAlpha(source.pixel(x, y));
+            if (alpha > 0)
                 ink = ink.united(QRect(x, y, 1, 1));
+            maxAlpha = qMax(maxAlpha, alpha);
+        }
     if (ink.isEmpty())
         return QIcon(path);
     // 去除 SDK 图片的透明外边距，最小化横线仍保持原来的宽高比。
@@ -27,13 +33,15 @@ QIcon windowControlIcon(const QString &path, const QSize &size)
     painter.drawImage(QPoint((side - ink.width()) / 2, (side - ink.height()) / 2),
                       source.copy(ink));
     painter.end();
+    // SDK 失焦 PNG 的主体透明度只有 40%；恢复实心黑色，按比例保留边缘抗锯齿。
+    for (int y = 0; y < image.height(); ++y)
+        for (int x = 0; x < image.width(); ++x)
+            image.setPixel(x, y, qRgba(0, 0, 0, qAlpha(image.pixel(x, y)) * 255 / maxAlpha));
     // QIcon 的默认位图引擎只缩小图像，提前按按钮的目标尺寸缩放。
     return QIcon(
         QPixmap::fromImage(image.scaled(size, Qt::KeepAspectRatio, Qt::SmoothTransformation)));
 }
 } // namespace
-
-#include <QToolButton>
 
 WorkspaceTitleBar::WorkspaceTitleBar(QWidget *window)
     : QWidget(window), window_(window), title_(new QLabel(window->windowTitle(), this))
@@ -45,8 +53,9 @@ WorkspaceTitleBar::WorkspaceTitleBar(QWidget *window)
     constexpr int rightInset = 16;
     setFixedHeight(buttonHeight + topInset);
     setStyleSheet(QStringLiteral(
-        "#workspaceTitleBar { background: #F2F3F5; }"
-        "#workspaceTitleBar QLabel { color: #34445C; padding-left: 16px; }"
+        "#workspaceTitleBar { background: transparent; }"
+        "#workspaceTitleBar QLabel { background: transparent; color: #000000; "
+        "padding-left: 16px; font-size: 16px; font-weight: bold; }"
         "#workspaceTitleBar QToolButton { border: none; background: transparent; }"
         "#workspaceTitleBar QToolButton:hover { background: #DCE1E8; }"
         "#workspaceTitleBar QToolButton#closeWindow:hover { background: #E86969; }"));
@@ -55,9 +64,11 @@ WorkspaceTitleBar::WorkspaceTitleBar(QWidget *window)
     layout->setContentsMargins(0, topInset, rightInset, 0);
     layout->setSpacing(0);
     title_->setMinimumWidth(0);
+    title_->setTextFormat(Qt::RichText);
+    title_->setTextInteractionFlags(Qt::NoTextInteraction);
     layout->addWidget(title_, 1);
     auto *windowActions = new FramelessWidget(window_, title_);
-    const QSize iconSize(22, 22);
+    const QSize iconSize(28, 28);
     const auto makeButton = [this, layout, iconSize](const QString &name, const QString &icon)
     {
         auto *button = new QToolButton(this);
@@ -86,6 +97,15 @@ WorkspaceTitleBar::WorkspaceTitleBar(QWidget *window)
 void WorkspaceTitleBar::updateWindowState()
 {
     const bool restore = window_->isMaximized() || window_->isFullScreen();
+    // 与首页使用同一品牌素材；图标和文字仍共用原有拖动／双击区域。
+    const QString branding =
+        restore ? QStringLiteral(
+                      "<img src=\":/branding/harmonyos_logo.png\" width=\"108\" height=\"20\" "
+                      "style=\"vertical-align: middle;\"> &nbsp;×&nbsp; ")
+                : QStringLiteral("<img src=\":/branding/app_icon.png\" width=\"20\" height=\"20\" "
+                                 "style=\"vertical-align: middle;\"> &nbsp;");
+    title_->setText(branding + window_->windowTitle().toHtmlEscaped());
+    title_->setAccessibleName(window_->windowTitle());
     const QString text = restore ? QStringLiteral("还原") : QStringLiteral("最大化");
     const QString iconPath = restore ? QStringLiteral(":/window-controls/recover.png")
                                      : QStringLiteral(":/window-controls/maximize.png");
@@ -98,10 +118,9 @@ bool WorkspaceTitleBar::eventFilter(QObject *watched, QEvent *event)
 {
     if (watched == window_)
     {
-        if (event->type() == QEvent::WindowStateChange)
+        if (event->type() == QEvent::WindowStateChange ||
+            event->type() == QEvent::WindowTitleChange)
             updateWindowState();
-        if (event->type() == QEvent::WindowTitleChange)
-            title_->setText(window_->windowTitle());
     }
     return QWidget::eventFilter(watched, event);
 }

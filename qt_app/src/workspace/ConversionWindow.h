@@ -26,8 +26,11 @@ class ConversionWindow : public QWidget
     void closeEvent(QCloseEvent *event) override;
     bool eventFilter(QObject *watched, QEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
+    void showEvent(QShowEvent *event) override;
+    void paintEvent(QPaintEvent *event) override;
 
   private:
+    void synchronizeLayout();
     void placeConvertButton();
     void createDocumentViews(bool preview = true);
     void switchMode(const QString &mode);
@@ -74,6 +77,7 @@ class ConversionWindow : public QWidget
     bool restoringWord_ = false;
     bool retry_ = false;
     bool switching_ = false;
+    bool layoutReady_ = false;
     QAction *saveAction_ = nullptr;
     QString editText_;
     QString savedText_;

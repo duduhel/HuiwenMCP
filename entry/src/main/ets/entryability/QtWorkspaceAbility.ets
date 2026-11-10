@@ -11,6 +11,7 @@ import { CefWorkspaceProxy } from '../utils/CefPlatform';
 import { readSettings } from '../services/settings/AppSettings';
 import { ensureWorkspaceAccess } from '../services/settings/WorkspaceStorage';
 import { QtSessionBridge } from '../bridge/QtSessionBridge';
+import { applyHomeWindowColors } from '../utils/HomeAppearance';
 
 export default class QtWorkspaceAbility extends UIAbility {
   // QPA 读取这两个字段，加载应用共享库并调用其中的 main()。
@@ -93,7 +94,7 @@ export default class QtWorkspaceAbility extends UIAbility {
     return new LocalStorage();
   }
 
-  private hideSystemWindowControls(target: window.Window): void {
+  private configureWindowTitleBar(target: window.Window): void {
     if (this.mode !== DocumentMode.Convert) {
       return;
     }
@@ -102,6 +103,13 @@ export default class QtWorkspaceAbility extends UIAbility {
       target.setWindowTitleButtonVisible(false, false, false);
     } catch (error) {
       hilog.warn(0xFF00, 'QtWorkspace', '隐藏系统窗口按钮失败：%{public}s',
+        (error as BusinessError).message);
+    }
+    try {
+      target.setWindowBackgroundColor('#00000000');
+      applyHomeWindowColors(this.context, target);
+    } catch (error) {
+      hilog.warn(0xFF00, 'QtWorkspace', '设置工作区透明标题栏失败：%{public}s',
         (error as BusinessError).message);
     }
   }
@@ -114,7 +122,7 @@ export default class QtWorkspaceAbility extends UIAbility {
       // QPA 创建的 Qt 窗口可能不同于 WindowStage 主窗，曝光后同步实际顶层窗口。
       const current = await window.getLastWindow(this.context);
       if (!this.destroyed && !this.closing) {
-        this.hideSystemWindowControls(current);
+        this.configureWindowTitleBar(current);
       }
     } catch (error) {
       hilog.warn(0xFF00, 'QtWorkspace', '获取工作区窗口失败：%{public}s',
@@ -123,7 +131,10 @@ export default class QtWorkspaceAbility extends UIAbility {
   }
 
   onForeground(): void {
-    this.refreshWindowControls();
+    // 首次前台早于 QPA 内容就绪，首次配置由 workspaceShown 负责。
+    if (this.workspaceReady) {
+      this.refreshWindowControls();
+    }
   }
 
   onWindowStageCreate(windowStage: window.WindowStage): void {
@@ -135,9 +146,6 @@ export default class QtWorkspaceAbility extends UIAbility {
       });
       // 先挂接 QPA 宿主，再通知 Qt 创建对应的新窗体。
       qpa.startQtApplication(this);
-      if (this.mode === DocumentMode.Convert) {
-        this.hideSystemWindowControls(windowStage.getMainWindowSync());
-      }
       this.session.attachWorkspace(this.mode, this.kind, {
         onReady: (): Promise<void> => this.workspaceShown(),
         onReturnHome: (): Promise<void> => this.returnHome(),

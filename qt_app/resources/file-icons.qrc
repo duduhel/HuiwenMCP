@@ -11,6 +11,8 @@
     </qresource>
     <qresource prefix="/branding">
         <file alias="app_icon.png">branding/app_icon.png</file>
+        <!-- Rasterized at 3x from entry/src/main/resources/base/media/harmonyos_logo.svg. -->
+        <file alias="harmonyos_logo.png">branding/harmonyos_logo.png</file>
     </qresource>
     <qresource prefix="/window-controls">
         <file alias="minimize.png">window-controls/minimize.png</file>
