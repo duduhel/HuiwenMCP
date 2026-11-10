@@ -29,6 +29,11 @@ class ConversionWindow : public QWidget
 
   private:
     void placeConvertButton();
+    void createDocumentViews(bool preview = true);
+    void switchMode(const QString &mode);
+    void applyMode(const QString &mode, const QString &path, const DocumentItem &document,
+                   bool restoring = false);
+    bool loadSelectedDocument();
     void refreshBusyState();
     void refreshScrollSync();
     bool scrollSyncEnabled() const;
@@ -43,8 +48,12 @@ class ConversionWindow : public QWidget
     void updateEditState();
     void toggleNavigationSidebar(bool visible);
     void handleOutline(const QJsonObject &message);
-    const QString mode_;
-    const QString kind_;
+    // taskMode／taskKind 保留 ArkTS 会话和原任务身份，mode／kind 只控制当前视图。
+    const QString taskMode_;
+    const QString taskKind_;
+    QString mode_;
+    QString kind_;
+    QString workingPath_;
     CefDocumentPreviewWidget *editor_ = nullptr;
     CefDocumentPreviewWidget *livePreview_ = nullptr;
     CefDocumentPreviewWidget *markdownPreview_ = nullptr;
@@ -52,7 +61,7 @@ class ConversionWindow : public QWidget
     WorkspaceSplitter *bodySplitter_;
     NavigationSidebar *navigationSidebar_;
     int navigationSidebarWidth_ = 350;
-    DocumentView *source_;
+    DocumentView *source_ = nullptr;
     DocumentView *result_ = nullptr;
     ConvertButton *button_ = nullptr;
     FunctionBar *functionBar_;
@@ -64,6 +73,7 @@ class ConversionWindow : public QWidget
     bool converting_ = false;
     bool restoringWord_ = false;
     bool retry_ = false;
+    bool switching_ = false;
     QAction *saveAction_ = nullptr;
     QString editText_;
     QString savedText_;

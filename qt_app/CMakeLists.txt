@@ -26,6 +26,8 @@ set(workspace_sources
     src/components/scrollBar/DocumentScrollBar.cpp
     src/components/functionBar/FunctionBar.cpp
     src/components/functionBar/FileMenu.cpp
+    src/components/functionBar/ModeMenu.cpp
+    src/workspace/dialogs/ModeSwitchDialog.cpp
     src/components/functionBar/SelectionMenu.cpp
     src/sidebars/navigation/NavigationSidebar.cpp
     src/sidebars/navigation/components/SidebarSection.cpp

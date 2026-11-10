@@ -179,9 +179,21 @@ void SandboxService::openTaskDirectory(const DocumentItem &document, bool output
         emit failed(QStringLiteral("请先选择文档"));
         return;
     }
-    const QString path = document.mode == "preview"
-                             ? document.taskPath
-                             : document.taskPath + (output ? "/output" : "/input");
+    if (output)
+    {
+        try
+        {
+            SandboxStore::workspaceOutputPath(document, true);
+        }
+        catch (const std::exception &error)
+        {
+            emit failed(QString::fromUtf8(error.what()));
+            return;
+        }
+    }
+    const QString path = output                       ? document.taskPath + "/output"
+                         : document.mode == "preview" ? document.taskPath
+                                                      : document.taskPath + "/input";
 #ifdef Q_OS_OPENHARMONY
     // ArkTS 使用自己的 filesDir 再经 NAPI 校验目录归属后调用系统文件管理器。
     if (!QtBridge::instance().requestOpenTaskDirectory(path))

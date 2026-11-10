@@ -1,6 +1,7 @@
 /* 顶部文件与滚动入口；菜单选中项是同步状态的唯一来源，工作区接收变化后控制联动。 */
 #include "FunctionBar.h"
 #include "FileMenu.h"
+#include "ModeMenu.h"
 #include "SelectionMenu.h"
 #include "sidebars/common/SidebarIcons.h"
 #include <QAction>
@@ -13,7 +14,7 @@
 #include <algorithm>
 
 FunctionBar::FunctionBar(const QString &mode, QWidget *parent)
-    : QToolBar(parent), fileMenu_(new FileMenu(mode, this))
+    : QToolBar(parent), fileMenu_(new FileMenu(mode, this)), modeMenu_(new ModeMenu(this))
 {
     setObjectName(QStringLiteral("workspaceFunctionBar"));
     setMovable(false);
@@ -63,6 +64,7 @@ FunctionBar::FunctionBar(const QString &mode, QWidget *parent)
                                        button->fontMetrics().boundingRect(text).width());
         button->setFixedSize(std::max(button->sizeHint().width(), textWidth + 40), height());
         addWidget(button);
+        return button;
     };
     navigationToggle_ = new QToolButton(this);
     navigationToggle_->setObjectName("navigationSidebarToggle");
@@ -79,8 +81,7 @@ FunctionBar::FunctionBar(const QString &mode, QWidget *parent)
     });
     addWidget(navigationToggle_);
     addMenuButton(QStringLiteral("文件"), fileMenu_);
-    // 单栏没有联动目标，保留同一个功能条，但不创建双栏滚动菜单。
-    if (mode != "preview")
+    // 保持入口位置稳定；单栏预览下禁用滚动设置，不移走后方的模式菜单。
     {
         auto *menu = new SelectionMenu(this);
         auto *modes = new QActionGroup(menu);
@@ -94,14 +95,26 @@ FunctionBar::FunctionBar(const QString &mode, QWidget *parent)
         }
         synchronizedAction_->setChecked(true);
         connect(synchronizedAction_, &QAction::toggled, this, &FunctionBar::scrollSyncChanged);
-        addMenuButton(QStringLiteral("滚动设置"), menu);
+        scrollButton_ = addMenuButton(QStringLiteral("滚动设置"), menu);
     }
+    addMenuButton(QStringLiteral("模式"), modeMenu_);
+    setMode(mode);
     auto *space = new QWidget(this);
     space->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     trailingSpacer_ = addWidget(space);
 }
 
 FileMenu *FunctionBar::fileMenu() const { return fileMenu_; }
+ModeMenu *FunctionBar::modeMenu() const
+{
+    return modeMenu_;
+}
+
+void FunctionBar::setMode(const QString &mode)
+{
+    fileMenu_->setMode(mode);
+    scrollButton_->setEnabled(mode != "preview");
+}
 
 QAction *FunctionBar::addCommand(const QString &text)
 {

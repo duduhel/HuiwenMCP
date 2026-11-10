@@ -953,7 +953,7 @@ void CefDocumentPreviewWidget::hideEvent(QHideEvent *event)
 {
     if (d_->format == Format::MarkdownEditor || d_->format == Format::MarkdownLive)
     {
-        // Temporary hiding must not destroy unsaved editor state.
+        // 编辑器隐藏时只暂停原生 Surface，保留未保存草稿。
         d_->timer->stop();
 #ifdef Q_OS_OPENHARMONY
         if (d_->client)

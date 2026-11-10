@@ -143,14 +143,14 @@ QVector<DocumentItem> scan(const QString &filesDir, const QString &mode)
                 item.mode = category;
                 item.lastUsedAt = task.lastModified().toMSecsSinceEpoch();
                 item.openPath = item.inputPath;
-                if (category != "preview")
+                const QString outputDir = item.taskPath + "/output";
+                if (category != "preview" || QFileInfo::exists(outputDir))
                 {
-                    const QString outputDir = item.taskPath + "/output";
                     if (QFileInfo(outputDir).canonicalFilePath() != outputDir)
                         break;
                     item.outputPath =
                         outputDir + "/" +
-                        (category == "edit" ? input.fileName() : input.completeBaseName() + ".md");
+                        (kind == "md" ? input.fileName() : input.completeBaseName() + ".md");
                     const QFileInfo output(item.outputPath);
                     if (category == "edit" && (output.exists() || output.isSymLink()))
                     {
@@ -442,10 +442,9 @@ QVector<SandboxFile> SandboxStore::listFiles(const QString &filesDir)
             QString sourceKind;
             for (const QString &role : {QString("input"), QString("output")})
             {
-                if (mode == "preview" && role == "output")
-                    continue;
-                const QString directory = mode == "preview" ? task.absoluteFilePath()
-                                                            : task.absoluteFilePath() + "/" + role;
+                const QString directory = mode == "preview" && role == "input"
+                                              ? task.absoluteFilePath()
+                                              : task.absoluteFilePath() + "/" + role;
                 const QFileInfo directoryInfo(directory);
                 if (directoryInfo.isSymLink() || directoryInfo.canonicalFilePath() != directory)
                     continue;
@@ -526,11 +525,12 @@ DocumentItem SandboxStore::loadTask(const QString &filesDir, const QString &task
     if (document.inputPath.isEmpty())
         fail(QStringLiteral("原任务的文档已被删除或无法读取"));
     document.openPath = document.inputPath;
-    if (mode == "convert" || mode == "edit")
+    document.taskPath = task;
+    document.mode = mode;
+    if (mode == "convert" || mode == "edit" || QFileInfo::exists(task + "/output"))
     {
-        const QString outputDir = validateTaskDirectory(root, task + "/output");
-        document.outputPath = outputDir + "/" +
-            (mode == "edit" ? document.name : QFileInfo(document.name).completeBaseName() + ".md");
+        validateTaskDirectory(root, task + "/output");
+        document.outputPath = workspaceOutputPath(document);
         const QFileInfo output(document.outputPath);
         if (output.isSymLink() ||
             (output.exists() && (!output.isFile() || !output.isReadable() ||
@@ -546,8 +546,6 @@ DocumentItem SandboxStore::loadTask(const QString &filesDir, const QString &task
             document.openPath = document.outputPath;
         }
     }
-    document.taskPath = task;
-    document.mode = mode;
     document.lastUsedAt = QFileInfo(task).lastModified().toMSecsSinceEpoch();
     return document;
 }
@@ -559,6 +557,55 @@ void SandboxStore::markUsed(const DocumentItem &document)
                  document.taskPath);
 }
 
+QString SandboxStore::workspaceOutputPath(const DocumentItem &document, bool createDirectory)
+{
+    const QString root =
+        rootPath(QFileInfo(QFileInfo(document.taskPath).absolutePath()).absolutePath());
+    const QString task = checkedTask(root, document.taskPath);
+    const QString category = QFileInfo(QFileInfo(task).absolutePath()).fileName();
+    const QString expectedInput = task + (category == "preview" ? "/" : "/input/") + document.name;
+    if (task != document.taskPath || document.mode != category ||
+        document.inputPath != expectedInput || safeName(document.name) != document.name ||
+        kindOf(document.name) != document.kind)
+        fail(QStringLiteral("工作区输入与原任务不一致"));
+    const QString directory = task + "/output";
+    if ((QFileInfo(directory).exists() || QFileInfo(directory).isSymLink()) &&
+        (QFileInfo(directory).isSymLink() || !QFileInfo(directory).isDir() ||
+         QFileInfo(directory).canonicalFilePath() != directory))
+        fail(QStringLiteral("工作区输出目录已失效"));
+    const QString path =
+        directory + "/" +
+        (document.kind == "md" ? document.name
+                               : QFileInfo(document.name).completeBaseName() + ".md");
+    if (!document.outputPath.isEmpty() && document.outputPath != path)
+        fail(QStringLiteral("工作区输出路径与原任务不一致"));
+    if (createDirectory)
+        ensureChild(task, "output");
+    return path;
+}
+
+QString SandboxStore::validateWorkspaceFile(const DocumentItem &document, const QString &path)
+{
+    // 输入和输出分别校验，不把无效 output 悄悄替换成 input。
+    const QString root =
+        rootPath(QFileInfo(QFileInfo(document.taskPath).absolutePath()).absolutePath());
+    const QString task = checkedTask(root, document.taskPath);
+    const QString category = QFileInfo(QFileInfo(task).absolutePath()).fileName();
+    if (task != document.taskPath || document.mode != category ||
+        kindOf(document.name) != document.kind || safeName(document.name) != document.name ||
+        (path != document.inputPath && path != workspaceOutputPath(document)))
+        fail(QStringLiteral("所选文件不属于当前工作区"));
+    const QFileInfo file(path);
+    const QString expectedInput =
+        task + (document.mode == "preview" ? "/" : "/input/") + document.name;
+    QFile input(path);
+    if (document.inputPath != expectedInput || file.isSymLink() || !file.isFile() ||
+        file.canonicalFilePath() != path || !input.open(QIODevice::ReadOnly) ||
+        (kindOf(path) != "md" && input.size() <= 0))
+        fail(QStringLiteral("文件尚未生成、已失效或无法读取"));
+    return path;
+}
+
 QString SandboxStore::validateOutput(const QString &filesDir, const QString &path)
 {
     const QString root = rootPath(filesDir);
@@ -566,15 +613,14 @@ QString SandboxStore::validateOutput(const QString &filesDir, const QString &pat
     const QString canonical = output.canonicalFilePath();
     const QStringList parts = QDir(root).relativeFilePath(canonical).split('/');
     const bool legacy = canonical.startsWith(root + "/outputs/");
-    const bool current = parts.size() == 4 && (parts[0] == "convert" || parts[0] == "edit") &&
-                         validTaskName(parts[1]) && parts[2] == "output";
+    const bool current =
+        parts.size() == 4 && validMode(parts[0]) && validTaskName(parts[1]) && parts[2] == "output";
     QFile file(path);
     if (path.contains(QChar::Null) || path.contains('\\') || !output.isAbsolute() ||
-        QDir::cleanPath(path) != path || (!legacy && !current) ||
-        output.suffix().compare(QStringLiteral("md"), Qt::CaseInsensitive) != 0 ||
-        !output.isFile() || output.size() <= 0 || !file.open(QIODevice::ReadOnly) ||
-        file.read(1).isEmpty())
-        fail(QStringLiteral("Markdown 文件不属于本应用输出目录，或文件不存在、为空、无法读取"));
+        QDir::cleanPath(path) != path || (!legacy && !current) || kindOf(path) != "md" ||
+        !output.isFile() || output.isSymLink() || canonical != path ||
+        !file.open(QIODevice::ReadOnly))
+        fail(QStringLiteral("Markdown 文件不属于本应用输出目录，或文件不存在、无法读取"));
     if (current)
         checkedTask(root, canonical);
     return output.absoluteFilePath();
@@ -592,7 +638,9 @@ QString SandboxStore::validateTaskDirectory(const QString &filesDir, const QStri
     const QString leaf = QDir(task).relativeFilePath(path);
     if (mode == "preview" && path == task)
         return path;
-    if ((mode != "edit" && mode != "convert") || (leaf != "input" && leaf != "output"))
-        fail(QStringLiteral("仅允许打开预览任务目录或编辑／转化任务的输入输出目录"));
-    return path;
+    if ((mode == "preview" && leaf == "output") ||
+        ((mode == "edit" || mode == "convert") && (leaf == "input" || leaf == "output")))
+        return path;
+    fail(QStringLiteral("仅允许打开当前任务的输入或输出目录"));
+    return {};
 }

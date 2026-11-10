@@ -34,6 +34,8 @@ The assistant branch restores the implementation in a separate commit after its 
 
 Word editing, PDF editing, OCR and broader batch conversion are planned. Compatibility depends on document content and device environment; screenshots do not validate every format or workflow.
 
+The Qt toolbar provides a separate Mode menu after Scroll settings. Switching selects input or output from the current task, preferring an available output, without creating a different workspace or replacing the main window. Supported operations are PDF/Markdown/Word preview, Markdown editing and PDF-to-Markdown conversion. Unsupported or unreadable choices are disabled. Edits save to the same task's output and preserve the original input; preview tasks create an output directory only when needed. Unsaved edits require confirmation before switching or closing. Reopening a recent task still uses its original task type. Only formatting checks have been performed for this change; device validation is pending.
+
 ## Development
 
 Clone the repository and initialize its pinned source dependencies:

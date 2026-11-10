@@ -22,8 +22,11 @@ class SandboxStore
     static void markUsed(const QString &filesDir, const QString &path);
     static void markUsed(const DocumentItem &document);
     static QString validateOutput(const QString &filesDir, const QString &path);
-    // 接受 preview 任务根目录或 edit/convert 的 input/output，不要求已有输出文件。
+    // 接受 preview 任务根目录及其 output，或 edit/convert 的 input/output。
     static QString validateTaskDirectory(const QString &filesDir, const QString &path);
+    // 操作模式不改变任务身份；只允许原输入与同一任务的 Markdown 输出。
+    static QString workspaceOutputPath(const DocumentItem &document, bool createDirectory = false);
+    static QString validateWorkspaceFile(const DocumentItem &document, const QString &path);
     // 设置维护：复制并校验三类工作区；不覆盖已有任务、不修改源目录。
     static QString copyWorkspaces(const QString &sourceRoot, const QString &targetRoot);
     // inputs 仅删 input；duplicates 同模式同名保留最近一份；workspaces 用于迁移后清理源副本。

@@ -36,9 +36,7 @@ export default class QtWorkspaceAbility extends UIAbility {
     }
     if (error !== '') {
       this.closing = false;
-      if (this.mode === DocumentMode.Edit) {
-        this.session.cancelWorkspaceClose();
-      }
+      this.session.cancelWorkspaceClose();
       hilog.error(0xFF00, 'QtWorkspace', 'HUIWEN_HOME_FAILED: %{public}s', error);
       return;
     }
@@ -97,10 +95,8 @@ export default class QtWorkspaceAbility extends UIAbility {
 
   onWindowStageCreate(windowStage: window.WindowStage): void {
     try {
-      // 只有转化模式部署 Python 业务包，独立预览直接使用 PDFium／CEF。
-      if (this.mode === DocumentMode.Convert) {
-        nativeBridge.configurePython(this.context.resourceManager, this.context.cacheDir);
-      }
+      // 任一工作区均可原地切入 PDF 转化，统一准备内置业务包；命中缓存时不重复部署。
+      nativeBridge.configurePython(this.context.resourceManager, this.context.cacheDir);
       this.cefProxy = new CefWorkspaceProxy(this.context, windowStage, (): void => {
         this.returnHome();
       });
@@ -210,7 +206,8 @@ export default class QtWorkspaceAbility extends UIAbility {
     if (this.closing || this.destroyed) {
       return;
     }
-    if (this.mode === DocumentMode.Edit && !approved) {
+    // 当前是否在编辑由 Qt 判断，不能再依赖最初启动的任务模式。
+    if (!approved) {
       if (this.closeChecking) {
         return;
       }
@@ -287,7 +284,7 @@ export default class QtWorkspaceAbility extends UIAbility {
       this.session.applyRestoredWorkspace(null, '工作区正在处理文件，请稍后重试');
       return;
     }
-    // 模式在本次窗口生命周期内固定；跨模式仍通过关闭回首页后再次打开，避免抢先释放 CEF。
+    // ArkTS 保留原任务身份，Qt 内部可切换操作模式；外部 Want 不能替换本次会话的原任务类型。
     if (String(want.parameters?.huiwenMode ?? DocumentMode.Convert) !== this.mode ||
       String(want.parameters?.huiwenKind ?? DocumentKind.PDF) !== this.kind) {
       this.session.applyRestoredWorkspace(null, '请先关闭当前工作区，再打开其他模式或文档类型');
