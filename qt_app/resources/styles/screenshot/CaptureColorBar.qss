@@ -1,0 +1,26 @@
+#widToolColor {
+    background: transparent;
+    background-image: none;
+    border-image: none;
+}
+
+QRadioButton::indicator {
+    width: 16px;
+    height: 16px;
+    border: 0;
+    background: transparent;
+    background-image: none;
+    border-image: none;
+}
+
+QPushButton {
+    color: #171717;
+    background: transparent;
+    border: 0;
+    font-size: 24px;
+}
+
+QPushButton:hover {
+    background: #F0F1F3;
+    border-radius: 6px;
+}

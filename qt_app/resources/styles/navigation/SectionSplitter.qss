@@ -1,0 +1,11 @@
+QSplitter#navigationSectionSplitter {
+    border: none;
+}
+
+QSplitter#navigationSectionSplitter::handle:vertical {
+    background: transparent;
+}
+
+QSplitter#navigationSectionSplitter::handle:vertical:enabled:hover, QSplitter#navigationSectionSplitter::handle:vertical:enabled:pressed {
+    background: #666666;
+}

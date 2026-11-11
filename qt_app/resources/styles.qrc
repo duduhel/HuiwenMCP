@@ -1,0 +1,20 @@
+<RCC>
+    <qresource prefix="/styles">
+        <file alias="document/DocumentScrollBar.qss">styles/document/DocumentScrollBar.qss</file>
+        <file alias="functionBar/FunctionBar.qss">styles/functionBar/FunctionBar.qss</file>
+        <file alias="navigation/DropIndicator.qss">styles/navigation/DropIndicator.qss</file>
+        <file alias="navigation/NavigationSidebar.qss">styles/navigation/NavigationSidebar.qss</file>
+        <file alias="navigation/SectionSplitter.qss">styles/navigation/SectionSplitter.qss</file>
+        <file alias="screenshot/CaptureColorBar.qss">styles/screenshot/CaptureColorBar.qss</file>
+        <file alias="screenshot/CaptureToolbar.qss">styles/screenshot/CaptureToolbar.qss</file>
+        <file alias="screenshot/ColorSwatch.qss">styles/screenshot/ColorSwatch.qss</file>
+        <file alias="screenshot/TextEditor.qss">styles/screenshot/TextEditor.qss</file>
+        <file alias="window/SelectionMenu.qss">styles/window/SelectionMenu.qss</file>
+        <file alias="window/TitleBarActions.qss">styles/window/TitleBarActions.qss</file>
+        <file alias="window/WindowModeMenu.qss">styles/window/WindowModeMenu.qss</file>
+        <file alias="window/WorkspaceTitleBar.qss">styles/window/WorkspaceTitleBar.qss</file>
+        <file alias="workspace/ConversionWindow.qss">styles/workspace/ConversionWindow.qss</file>
+        <file alias="workspace/ConvertButton.qss">styles/workspace/ConvertButton.qss</file>
+        <file alias="workspace/TransparentWindow.qss">styles/workspace/TransparentWindow.qss</file>
+    </qresource>
+</RCC>

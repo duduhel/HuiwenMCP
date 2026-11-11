@@ -1,0 +1,7 @@
+/* 动态参数：%1 标注文字颜色；创建时使用红色。 */
+QLineEdit {
+    border: 1px solid #dadada;
+    background: rgba(255,255,255,20);
+    padding: 2px;
+    color: %1;
+}

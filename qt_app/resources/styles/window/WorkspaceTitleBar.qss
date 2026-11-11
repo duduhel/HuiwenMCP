@@ -1,0 +1,32 @@
+/* 动态参数：%1 标题左边距；%2 字号；%3/%4 三键左右内边距；%5/%6 字标右/左内边距。 */
+#workspaceTitleBar {
+    background: transparent;
+}
+
+#workspaceTitleBar QLabel {
+    background: transparent;
+    color: #000000;
+    padding-left: %1px;
+    font-size: %2px;
+    font-weight: bold;
+}
+
+#workspaceTitleBar QToolButton {
+    border: none;
+    background: transparent;
+    padding: 0px %4px 0px %3px;
+    background-origin: content;
+    background-clip: content;
+}
+
+#workspaceTitleBar QToolButton#harmonyLogo {
+    padding: 0px %5px 0px %6px;
+}
+
+#workspaceTitleBar QToolButton[titleBarHover="true"] {
+    background-color: #DCE1E8;
+}
+
+#workspaceTitleBar QToolButton#closeWindow[titleBarHover="true"] {
+    background-color: #E86969;
+}

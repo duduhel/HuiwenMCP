@@ -13,6 +13,7 @@ set(workspace_sources
     src/components/window/WorkspaceTitleBar.cpp
     src/components/window/TitleBarActions.cpp
     resources/file-icons.qrc
+    resources/styles.qrc
     resources/markdown.qrc
     resources/word.qrc
     src/workspace/ConversionWindow.cpp

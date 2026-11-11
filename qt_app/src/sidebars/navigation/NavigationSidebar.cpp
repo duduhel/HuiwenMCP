@@ -4,6 +4,7 @@
 #include "components/SidebarSectionList.h"
 #include "sections/markdownOutline/MarkdownOutlineSection.h"
 #include "sections/workspaceFiles/WorkspaceFilesSection.h"
+#include "styles/StyleSheet.h"
 #include <QPalette>
 #include <QVBoxLayout>
 #include <QWindow>
@@ -29,18 +30,7 @@ NavigationSidebar::NavigationSidebar(QWidget *parent)
     colors.setColor(QPalette::Highlight, QColor("#E5E5E5"));
     colors.setColor(QPalette::HighlightedText, QColor("#333333"));
     setPalette(colors);
-    setStyleSheet(QStringLiteral(
-        "QWidget#navigationSidebar { background: white; }"
-        "QLabel { color: #777777; font-size: 18px; }"
-        "QFrame#navigationSectionHeaderRow { background: #F3F3F3; border: none; }"
-        "QFrame#navigationSectionHeaderRow:hover { background: #EAEAEA; }"
-        "QToolButton#navigationSectionHeader { background: transparent; color: #333333; "
-        "border: none; padding: 8px 12px; font-size: 20px; text-align: left; }"
-        "QToolButton#navigationSectionHeader[available=\"false\"] { color: #999999; }"
-        "QTreeView { background: white; color: #333333; border: none; font-size: 18px; outline: "
-        "none; }"
-        "QTreeView::item { padding: 4px 0; }"
-        "QTreeView::item:selected { background: #E5E5E5; color: #333333; }"));
+    setStyleSheet(loadStyle(QStringLiteral(":/styles/navigation/NavigationSidebar.qss")));
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     auto *sections = new SidebarSectionList(this);

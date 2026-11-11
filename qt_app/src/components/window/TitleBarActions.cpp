@@ -3,6 +3,7 @@
 #include "menus/FileMenu.h"
 #include "menus/ModeMenu.h"
 #include "menus/SelectionMenu.h"
+#include "styles/StyleSheet.h"
 #include <QAction>
 #include <QActionGroup>
 #include <QFontMetrics>
@@ -21,17 +22,7 @@ TitleBarActions::TitleBarActions(const QString &mode, QWidget *parent)
     setContextMenuPolicy(Qt::PreventContextMenu);
     setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
     setMinimumWidth(0);
-    setStyleSheet(QStringLiteral(
-        "QToolBar#workspaceTitleActions { background: transparent; border: none; "
-        "margin: 0; padding: 0; spacing: 0; }"
-        "QToolBar#workspaceTitleActions QToolButton { background: transparent; border: none; "
-        "border-radius: 8px; margin: 0; padding: 0 20px; color: #000000; "
-        "font-size: 26px; font-weight: 550; }"
-        "QToolBar#workspaceTitleActions QToolButton[selected=\"true\"] "
-        "{ background: #DCE1E8; }"
-        "QToolBar#workspaceTitleActions QToolButton:disabled { color: #A0A8B4; }"
-        "QToolBar#workspaceTitleActions QToolButton::menu-indicator "
-        "{ image: none; width: 0; height: 0; }"));
+    setStyleSheet(loadStyle(QStringLiteral(":/styles/window/TitleBarActions.qss")));
     layout()->setContentsMargins(0, 0, 0, 0);
     layout()->setSpacing(0);
 

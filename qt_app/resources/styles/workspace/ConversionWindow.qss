@@ -1,0 +1,4 @@
+/* 动态参数：%1 工作区调色板背景色。 */
+QWidget#conversionWindow, QWidget#documentCardBackground, QWidget#documentCardViewport {
+    background-color: %1;
+}

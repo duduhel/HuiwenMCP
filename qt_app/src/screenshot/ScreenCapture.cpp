@@ -3,6 +3,7 @@
 #include "CaptureAmplifier.h"
 #include "CaptureToolbar.h"
 #include "HarmonyImeInput.h"
+#include "styles/StyleSheet.h"
 #include <QDebug>
 
 #ifdef Q_OS_OPENHARMONY
@@ -1035,9 +1036,7 @@ class CaptureOverlay final : public QWidget
             {
                 suppressCommitBriefly();
                 textEditor_->setStyleSheet(
-                    QStringLiteral(
-                        "QLineEdit{border:1px solid #dadada;background:rgba(255,255,255,20);"
-                        "padding:2px;color:%1;}")
+                    loadStyle(QStringLiteral(":/styles/screenshot/TextEditor.qss"))
                         .arg(vecColor[color_]));
                 textEditor_->setFocus();
             }
@@ -1077,9 +1076,8 @@ class CaptureOverlay final : public QWidget
         // 被 CEF 抢占后永远无法重新 attach（只能输入英文）。改为由 HarmonyImeInput 直接
         // 使用 IME Kit C API 接管输入法，因此这里关闭 Qt 侧的输入法查询。
         textEditor_->setAttribute(Qt::WA_InputMethodEnabled, false);
-        textEditor_->setStyleSheet(
-            QStringLiteral("QLineEdit{border:1px solid #dadada;background:rgba(255,255,255,20);"
-                           "padding:2px;color:#ff0000;}"));
+        textEditor_->setStyleSheet(loadStyle(QStringLiteral(":/styles/screenshot/TextEditor.qss"))
+                                       .arg(QStringLiteral("#ff0000")));
         textEditor_->installEventFilter(this);
         connect(textEditor_, &QLineEdit::returnPressed, this, [this]() { commitTextEdit(); });
         connect(textEditor_, &QLineEdit::textChanged, this,
@@ -1113,10 +1111,8 @@ class CaptureOverlay final : public QWidget
         commitTextEdit();
         pendingTextMark_ = currentMark_;
         textEditor_->setFont(QFont(QStringLiteral("Arial"), vecFont[qBound(0, font_, 7)].toInt()));
-        textEditor_->setStyleSheet(
-            QStringLiteral("QLineEdit{border:1px solid #dadada;background:rgba(255,255,255,20);"
-                           "padding:2px;color:%1;}")
-                .arg(vecColor[qBound(0, color_, 13)]));
+        textEditor_->setStyleSheet(loadStyle(QStringLiteral(":/styles/screenshot/TextEditor.qss"))
+                                       .arg(vecColor[qBound(0, color_, 13)]));
         textEditor_->setText(QString());
         textEditor_->setFixedWidth(120);
         // 限制文字编辑器位置在截图选区内

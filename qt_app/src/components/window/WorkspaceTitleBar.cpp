@@ -2,6 +2,7 @@
 #include "WorkspaceTitleBar.h"
 #include "TitleBarActions.h"
 #include "cust/framelesswidget.h"
+#include "styles/StyleSheet.h"
 #include <QCursor>
 #include <QEvent>
 #include <QHBoxLayout>
@@ -119,23 +120,13 @@ void WorkspaceTitleBar::updateMetrics()
     // 保留系统缩放热区的避让，同时让按钮上下边距相等。
     // 三键仍按原尺寸垂直居中；菜单使用标题栏全高，避免 26px 文字被内边距裁切。
     layout()->setContentsMargins(0, 0, vp(16), 0);
-    setStyleSheet(
-        QStringLiteral(
-            "#workspaceTitleBar { background: transparent; }"
-            "#workspaceTitleBar QLabel { background: transparent; color: #000000; "
-            "padding-left: %1px; font-size: %2px; font-weight: bold; }"
-            "#workspaceTitleBar QToolButton { border: none; background: transparent; "
-            "padding: 0px %4px 0px %3px; background-origin: content; background-clip: content; }"
-            "#workspaceTitleBar QToolButton#harmonyLogo { padding: 0px %5px 0px %6px; }"
-            "#workspaceTitleBar QToolButton[titleBarHover=\"true\"] { background-color: #DCE1E8; }"
-            "#workspaceTitleBar QToolButton#closeWindow[titleBarHover=\"true\"] "
-            "{ background-color: #E86969; }")
-            .arg(vp(window_->isMaximized() || window_->isFullScreen() ? 8 : 16))
-            .arg(qRound(16 * fontScale))
-            .arg(leftPadding)
-            .arg(rightPadding)
-            .arg(vp(8))
-            .arg(vp(16)));
+    setStyleSheet(loadStyle(QStringLiteral(":/styles/window/WorkspaceTitleBar.qss"))
+                      .arg(vp(window_->isMaximized() || window_->isFullScreen() ? 8 : 16))
+                      .arg(qRound(16 * fontScale))
+                      .arg(leftPadding)
+                      .arg(rightPadding)
+                      .arg(vp(8))
+                      .arg(vp(16)));
     // 对齐首页：字标左侧 16vp，右侧 8vp，后续标题仍是独立拖动区。
     harmonyLogo_->setFixedSize(vp(132), buttonHeight);
     harmonyLogo_->setIconSize(QSize(vp(108), vp(20)));
@@ -226,18 +217,7 @@ void WorkspaceTitleBar::showMaximizeMenu()
         maximizeMenu_->setAttribute(Qt::WA_TranslucentBackground);
         maximizeMenu_->setAttribute(Qt::WA_ShowWithoutActivating);
         maximizeMenu_->setStyleSheet(
-            QStringLiteral(
-                "QMenu#windowModeMenu { background: #F2F6FC; border: 1px solid #CFD8E5; "
-                "border-radius: %1px; padding: 0px; }"
-                "QMenu#windowModeMenu QLabel { background: transparent; padding: 0px; "
-                "color: #7D8795; font-size: %1px; font-weight: bold; }"
-                "QMenu#windowModeMenu QToolButton { background: transparent; color: #26364D; "
-                "border: 1px solid transparent; border-radius: %2px; padding: %2px; "
-                "font-size: %1px; font-weight: normal; }"
-                "QMenu#windowModeMenu QToolButton:hover, QMenu#windowModeMenu QToolButton:focus "
-                "{ background: #E3EBF7; border-color: #B5C7E2; }")
-                .arg(vp(14))
-                .arg(vp(8)));
+            loadStyle(QStringLiteral(":/styles/window/WindowModeMenu.qss")).arg(vp(14)).arg(vp(8)));
         auto *content = new QWidget(maximizeMenu_);
         auto *layout = new QVBoxLayout(content);
         layout->setContentsMargins(vp(16), vp(12), vp(16), vp(12));

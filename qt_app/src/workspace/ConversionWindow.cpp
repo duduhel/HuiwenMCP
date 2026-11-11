@@ -17,6 +17,7 @@
 #include "sandbox/SandboxStore.h"
 #include "services/ConversionService.h"
 #include "sidebars/navigation/NavigationSidebar.h"
+#include "styles/StyleSheet.h"
 #include <QAction>
 #include <QCloseEvent>
 #include <QDir>
@@ -61,9 +62,7 @@ ConversionWindow::ConversionWindow(const QString &mode, const QString &kind, QWi
     setPalette(colors);
     setObjectName(QStringLiteral("conversionWindow"));
     setAttribute(Qt::WA_StyledBackground);
-    setStyleSheet(QStringLiteral("QWidget#conversionWindow, "
-                                 "QWidget#documentCardBackground, QWidget#documentCardViewport "
-                                 "{ background-color: %1; }")
+    setStyleSheet(loadStyle(QStringLiteral(":/styles/workspace/ConversionWindow.qss"))
                       .arg(colors.color(QPalette::Window).name()));
     if (taskMode_ == "convert")
     {
@@ -77,7 +76,7 @@ ConversionWindow::ConversionWindow(const QString &mode, const QString &kind, QWi
 #endif
         setPalette(transparentColors);
         setStyleSheet(styleSheet() +
-                      QStringLiteral("QWidget#conversionWindow { background: transparent; }"));
+                      loadStyle(QStringLiteral(":/styles/workspace/TransparentWindow.qss")));
         bodySplitter_->setPalette(colors);
         bodySplitter_->setAutoFillBackground(true);
         status_->setPalette(colors);

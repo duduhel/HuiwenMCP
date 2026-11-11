@@ -1,6 +1,7 @@
 /* 垂直分隔器管理展开高度；全部折叠时贴上下边，标题拖动仍按区块身份排序。 */
 #include "SidebarSectionList.h"
 #include "SidebarSection.h"
+#include "styles/StyleSheet.h"
 #include <QCoreApplication>
 #include <QCursor>
 #include <QGraphicsOpacityEffect>
@@ -24,12 +25,7 @@ SidebarSectionList::SidebarSectionList(QWidget *parent)
     splitter_->setChildrenCollapsible(false);
     splitter_->setOpaqueResize(true);
     splitter_->setHandleWidth(12);
-    splitter_->setStyleSheet(QStringLiteral(
-        "QSplitter#navigationSectionSplitter { border: none; }"
-        "QSplitter#navigationSectionSplitter::handle:vertical { background: transparent; }"
-        "QSplitter#navigationSectionSplitter::handle:vertical:enabled:hover, "
-        "QSplitter#navigationSectionSplitter::handle:vertical:enabled:pressed { background: "
-        "#666666; }"));
+    splitter_->setStyleSheet(loadStyle(QStringLiteral(":/styles/navigation/SectionSplitter.qss")));
     connect(splitter_, &QSplitter::splitterMoved, this, [this] {
         const int expanded =
             std::count_if(sections_.begin(), sections_.end(),
@@ -45,7 +41,7 @@ SidebarSectionList::SidebarSectionList(QWidget *parent)
         }
     });
     indicator_->setFixedHeight(3);
-    indicator_->setStyleSheet("background: #000000;");
+    indicator_->setStyleSheet(loadStyle(QStringLiteral(":/styles/navigation/DropIndicator.qss")));
     indicator_->setAttribute(Qt::WA_TransparentForMouseEvents);
     indicator_->hide();
     preview_->setAttribute(Qt::WA_TransparentForMouseEvents);

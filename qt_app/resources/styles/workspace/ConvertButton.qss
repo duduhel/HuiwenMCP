@@ -1,0 +1,11 @@
+QPushButton {
+    background: #2968D9;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 2px 12px;
+}
+
+QPushButton:disabled {
+    background: #B2BDD0;
+}

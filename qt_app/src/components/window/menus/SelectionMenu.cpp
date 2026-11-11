@@ -1,18 +1,13 @@
 /* 查看模式、业务模式和滚动设置复用同一绘制，统一圆点大小、颜色和右侧间距。 */
 #include "SelectionMenu.h"
+#include "styles/StyleSheet.h"
 #include <QAction>
 #include <QPainter>
 
 SelectionMenu::SelectionMenu(QWidget *parent) : QMenu(parent)
 {
     setToolTipsVisible(true);
-    setStyleSheet(QStringLiteral("QMenu { background: #F7F8FA; border: none; padding: 8px; "
-                                 "color: #34445C; font-size: 28px; font-weight: normal; }"
-                                 "QMenu::item { min-height: 40px; padding: 16px 64px 16px 20px; }"
-                                 "QMenu::item:selected { background: #E5E8ED; }"
-                                 "QMenu::item:disabled { color: #A0A8B4; }"
-                                 "QMenu::indicator { width: 0px; height: 0px; image: none; }"
-                                 "QMenu::right-arrow { width: 0px; height: 0px; image: none; }"));
+    setStyleSheet(loadStyle(QStringLiteral(":/styles/window/SelectionMenu.qss")));
 }
 
 void SelectionMenu::paintEvent(QPaintEvent *event)

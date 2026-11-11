@@ -1,0 +1,30 @@
+/* 动态参数：%1 字号与外圆角；%2 按钮圆角与内边距。 */
+QMenu#windowModeMenu {
+    background: #F2F6FC;
+    border: 1px solid #CFD8E5;
+    border-radius: %1px;
+    padding: 0px;
+}
+
+QMenu#windowModeMenu QLabel {
+    background: transparent;
+    padding: 0px;
+    color: #7D8795;
+    font-size: %1px;
+    font-weight: bold;
+}
+
+QMenu#windowModeMenu QToolButton {
+    background: transparent;
+    color: #26364D;
+    border: 1px solid transparent;
+    border-radius: %2px;
+    padding: %2px;
+    font-size: %1px;
+    font-weight: normal;
+}
+
+QMenu#windowModeMenu QToolButton:hover, QMenu#windowModeMenu QToolButton:focus {
+    background: #E3EBF7;
+    border-color: #B5C7E2;
+}

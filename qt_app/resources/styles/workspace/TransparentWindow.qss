@@ -1,0 +1,3 @@
+QWidget#conversionWindow {
+    background: transparent;
+}

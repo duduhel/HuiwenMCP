@@ -1,5 +1,6 @@
 /* 中部分割线上的悬浮转化按钮；宽度随状态文字调整，不占用整行。 */
 #include "ConvertButton.h"
+#include "styles/StyleSheet.h"
 #include <QFontMetrics>
 #include <QPainterPath>
 #include <QRegion>
@@ -14,9 +15,7 @@ ConvertButton::ConvertButton(QWidget *parent) : QPushButton(QStringLiteral("转�
     setAttribute(Qt::WA_NativeWindow);
 #endif
     setCursor(Qt::PointingHandCursor);
-    setStyleSheet("QPushButton { background: #2968D9; color: white; border: "
-                  "none; border-radius: 8px; padding: 2px 12px; }"
-                  "QPushButton:disabled { background: #B2BDD0; }");
+    setStyleSheet(loadStyle(QStringLiteral(":/styles/workspace/ConvertButton.qss")));
     setState(false, false);
 }
 

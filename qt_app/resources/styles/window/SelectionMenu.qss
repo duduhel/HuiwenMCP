@@ -1,0 +1,33 @@
+QMenu {
+    background: #F7F8FA;
+    border: none;
+    padding: 8px;
+    color: #34445C;
+    font-size: 28px;
+    font-weight: normal;
+}
+
+QMenu::item {
+    min-height: 40px;
+    padding: 16px 64px 16px 20px;
+}
+
+QMenu::item:selected {
+    background: #E5E8ED;
+}
+
+QMenu::item:disabled {
+    color: #A0A8B4;
+}
+
+QMenu::indicator {
+    width: 0px;
+    height: 0px;
+    image: none;
+}
+
+QMenu::right-arrow {
+    width: 0px;
+    height: 0px;
+    image: none;
+}

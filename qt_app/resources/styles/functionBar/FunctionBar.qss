@@ -1,0 +1,42 @@
+/* 动态参数：%1 按屏幕缩放计算的顶部圆角。 */
+QToolBar#workspaceFunctionBar {
+    background: #F2F3F5;
+    border: none;
+    border-top-left-radius: %1px;
+    border-top-right-radius: %1px;
+    border-bottom-left-radius: 0px;
+    border-bottom-right-radius: 0px;
+    margin: 0;
+    padding: 0;
+    spacing: 0;
+}
+
+QToolBar#workspaceFunctionBar QToolButton {
+    background: transparent;
+    border: none;
+    border-radius: 10px;
+    margin: 0;
+    padding: 0 20px;
+    color: #34445C;
+    font-size: 28px;
+    font-weight: normal;
+}
+
+QToolBar#workspaceFunctionBar QToolButton[selected="true"] {
+    background: #DCE1E8;
+}
+
+QToolBar#workspaceFunctionBar QToolButton#navigationSidebarToggle {
+    padding: 0;
+    border-radius: 8px;
+}
+
+QToolBar#workspaceFunctionBar QToolButton#navigationSidebarToggle:checked {
+    background: #E5E5E5;
+}
+
+QToolBar#workspaceFunctionBar QToolButton::menu-indicator {
+    image: none;
+    width: 0;
+    height: 0;
+}

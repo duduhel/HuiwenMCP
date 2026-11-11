@@ -1,0 +1,5 @@
+#widTool {
+    background: transparent;
+    background-image: none;
+    border-image: none;
+}

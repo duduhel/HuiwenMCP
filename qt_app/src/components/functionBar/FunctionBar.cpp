@@ -1,6 +1,7 @@
 /* 工作区功能条只管理侧栏及后续业务入口，不持有标题栏菜单或菜单状态。 */
 #include "FunctionBar.h"
 #include "sidebars/common/SidebarIcons.h"
+#include "styles/StyleSheet.h"
 #include <QEvent>
 #include <QLayout>
 #include <QScreen>
@@ -63,24 +64,7 @@ void FunctionBar::updateAppearance()
     scale = (density > 0 ? density : 1) / window()->devicePixelRatioF();
 #endif
     const int radius = qRound(24 * scale);
-    setStyleSheet(
-        QStringLiteral(
-            "QToolBar#workspaceFunctionBar { background: #F2F3F5; border: none; "
-            "border-top-left-radius: %1px; border-top-right-radius: %1px; "
-            "border-bottom-left-radius: 0px; border-bottom-right-radius: 0px; "
-            "margin: 0; padding: 0; spacing: 0; }"
-            "QToolBar#workspaceFunctionBar QToolButton { background: transparent; border: none; "
-            "border-radius: 10px; margin: 0; padding: 0 20px; "
-            "color: #34445C; font-size: 28px; font-weight: normal; }"
-            "QToolBar#workspaceFunctionBar QToolButton[selected=\"true\"] "
-            "{ background: #DCE1E8; }"
-            "QToolBar#workspaceFunctionBar QToolButton#navigationSidebarToggle "
-            "{ padding: 0; border-radius: 8px; }"
-            "QToolBar#workspaceFunctionBar QToolButton#navigationSidebarToggle:checked "
-            "{ background: #E5E5E5; }"
-            "QToolBar#workspaceFunctionBar QToolButton::menu-indicator "
-            "{ image: none; width: 0; height: 0; }")
-            .arg(radius));
+    setStyleSheet(loadStyle(QStringLiteral(":/styles/functionBar/FunctionBar.qss")).arg(radius));
     // 工具栏保持原来的实色，仅顶部圆角缺口透出背景。
     layout()->setContentsMargins(12, 8, 12, 8);
     layout()->setSpacing(0);

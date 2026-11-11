@@ -1,5 +1,6 @@
 /* 汇文截图工具栏：形状、文字、颜色、字号与完成／取消操作。 */
 #include "CaptureToolbar.h"
+#include "styles/StyleSheet.h"
 #include "ui_CaptureToolbar.h"
 #include <QAbstractButton>
 #include <QApplication>
@@ -138,10 +139,6 @@ void ScaleChildren(QWidget *parent)
         child->setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
         child->setGeometry(geometry.x() * kToolbarScale, geometry.y() * kToolbarScale,
                            geometry.width() * kToolbarScale, geometry.height() * kToolbarScale);
-        QString style = child->styleSheet();
-        style.replace("20px", "40px");
-        style.replace("8px", "16px");
-        child->setStyleSheet(style);
     }
 }
 
@@ -154,14 +151,9 @@ CaptureToolbar::CaptureToolbar(QWidget *parent) : QWidget(parent), ui(new Ui::Ca
     ScaleChildren(ui->widToolColor);
     ui->widTool->setGeometry(0, 0, 306 * kToolbarScale, 28 * kToolbarScale);
     ui->widToolColor->setGeometry(0, 28 * kToolbarScale, 306 * kToolbarScale, 28 * kToolbarScale);
-    ui->widTool->setStyleSheet(QStringLiteral(
-        "#widTool{background:transparent;background-image:none;border-image:none;}"));
-    ui->widToolColor->setStyleSheet(QStringLiteral(
-        "#widToolColor{background:transparent;background-image:none;border-image:none;}"
-        "QRadioButton::indicator{width:16px;height:16px;border:0;"
-        "background:transparent;background-image:none;border-image:none;}"
-        "QPushButton{color:#171717;background:transparent;border:0;font-size:24px;}"
-        "QPushButton:hover{background:#F0F1F3;border-radius:6px;}"));
+    ui->widTool->setStyleSheet(loadStyle(QStringLiteral(":/styles/screenshot/CaptureToolbar.qss")));
+    ui->widToolColor->setStyleSheet(
+        loadStyle(QStringLiteral(":/styles/screenshot/CaptureColorBar.qss")));
     ui->widTool->installEventFilter(this);
     ui->widToolColor->installEventFilter(this);
     // 按钮已隐藏并手动绘制，需开启鼠标跟踪以在 MouseMove 中维护悬停状态
@@ -203,7 +195,8 @@ CaptureToolbar::CaptureToolbar(QWidget *parent) : QWidget(parent), ui(new Ui::Ca
         button->setCursor(Qt::PointingHandCursor);
         button->setFocusPolicy(Qt::NoFocus);
     }
-    ui->labColor->setStyleSheet(QString("background-color:%1;").arg(vecColor[9]));
+    ui->labColor->setStyleSheet(
+        loadStyle(QStringLiteral(":/styles/screenshot/ColorSwatch.qss")).arg(vecColor[9]));
     ui->radColor10->setChecked(true);
     ui->btnFont->setText(QString("%1pt").arg(vecFont[3]));
     ui->btnFont->setFocusPolicy(Qt::NoFocus);
@@ -320,7 +313,8 @@ void CaptureToolbar::onText(int state)
 
 void CaptureToolbar::onChangeColor(int colorIdx)
 {
-    ui->labColor->setStyleSheet(QString("background-color:%1;").arg(vecColor[colorIdx]));
+    ui->labColor->setStyleSheet(
+        loadStyle(QStringLiteral(":/styles/screenshot/ColorSwatch.qss")).arg(vecColor[colorIdx]));
     ui->widToolColor->update();
     emit changeColor(colorIdx);
 }
