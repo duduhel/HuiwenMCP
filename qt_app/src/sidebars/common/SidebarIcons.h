@@ -16,8 +16,8 @@ inline QIcon sidebarIcon()
     painter.scale(2, 2);
     const QColor color("#666666");
     painter.setPen(QPen(color, 1.7, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-    painter.drawRoundedRect(QRectF(3, 3, 18, 18), 2, 2);
-    painter.drawLine(QPointF(9, 4), QPointF(9, 20));
+    painter.drawRoundedRect(QRectF(3, 5, 18, 14), 2, 2);
+    painter.drawLine(QPointF(9, 6), QPointF(9, 18));
     painter.end();
     return QIcon(image);
 }

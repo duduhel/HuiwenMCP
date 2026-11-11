@@ -19,13 +19,15 @@ FunctionBar::FunctionBar(QWidget *parent) : QToolBar(parent)
     setFixedHeight(72);
     setContentsMargins(0, 0, 0, 0);
     setAutoFillBackground(false);
-    updateAppearance();
+
+    leadingSpace_ = new QWidget(this);
+    addWidget(leadingSpace_);
 
     navigationToggle_ = new QToolButton(this);
     navigationToggle_->setObjectName("navigationSidebarToggle");
     navigationToggle_->setIcon(sidebarIcon());
-    navigationToggle_->setIconSize(QSize(28, 28));
-    navigationToggle_->setFixedSize(48, 48);
+    navigationToggle_->setIconSize(QSize(20, 20));
+    navigationToggle_->setFixedSize(44, 44);
     navigationToggle_->setCheckable(true);
     navigationToggle_->setCursor(Qt::PointingHandCursor);
     navigationToggle_->setAccessibleName(QStringLiteral("开关工作区导航侧栏"));
@@ -35,9 +37,10 @@ FunctionBar::FunctionBar(QWidget *parent) : QToolBar(parent)
         emit navigationSidebarToggled(visible);
     });
     addWidget(navigationToggle_);
-    auto *space = new QWidget(this);
-    space->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-    addWidget(space);
+    trailingSpace_ = new QWidget(this);
+    trailingSpace_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    addWidget(trailingSpace_);
+    updateAppearance();
 }
 
 void FunctionBar::updateAppearance()
@@ -65,9 +68,11 @@ void FunctionBar::updateAppearance()
 #endif
     const int radius = qRound(24 * scale);
     setStyleSheet(loadStyle(QStringLiteral(":/styles/functionBar/FunctionBar.qss")).arg(radius));
-    // 工具栏保持原来的实色，仅顶部圆角缺口透出背景。
-    layout()->setContentsMargins(12, 8, 12, 8);
+    // 原生工具栏使用等距边距，左右额外留白由占位项承担，避免按钮纵向偏移。
+    layout()->setContentsMargins(8, 8, 8, 8);
     layout()->setSpacing(0);
+    leadingSpace_->setFixedWidth(radius);
+    trailingSpace_->setMinimumWidth(radius);
 }
 
 bool FunctionBar::event(QEvent *event)

@@ -19,4 +19,6 @@ class FunctionBar : public QToolBar
   private:
     void updateAppearance();
     QToolButton *navigationToggle_ = nullptr;
+    QWidget *leadingSpace_ = nullptr;
+    QWidget *trailingSpace_ = nullptr;
 };
