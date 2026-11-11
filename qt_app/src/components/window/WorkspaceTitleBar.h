@@ -4,14 +4,15 @@
 class QLabel;
 class QMenu;
 class QToolButton;
+class QToolBar;
 
-// 标题栏只负责窗口操作，拖动与双击由 cust 的 QObject 辅助类处理。
+// 标题栏承载菜单与窗口操作；菜单业务留在 FunctionBar，拖动与双击复用 cust。
 class WorkspaceTitleBar : public QWidget
 {
     Q_OBJECT
 
   public:
-    explicit WorkspaceTitleBar(QWidget *window);
+    WorkspaceTitleBar(QWidget *window, QToolBar *commands);
   signals:
     void closeRequested();
     void aboutDeviceRequested();

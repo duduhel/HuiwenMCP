@@ -1,3 +1,4 @@
+/* 工作区自绘标题栏：标识与窗口三键之间承载菜单，留白继续作为窗口拖动区。 */
 #include "WorkspaceTitleBar.h"
 #include "cust/framelesswidget.h"
 #include <QCursor>
@@ -8,6 +9,7 @@
 #include <QMenu>
 #include <QScreen>
 #include <QStyle>
+#include <QToolBar>
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <QVariant>
@@ -17,7 +19,7 @@
 #include <window_manager/oh_display_manager.h>
 #endif
 
-WorkspaceTitleBar::WorkspaceTitleBar(QWidget *window)
+WorkspaceTitleBar::WorkspaceTitleBar(QWidget *window, QToolBar *commands)
     : QWidget(window), window_(window), title_(new QLabel(window->windowTitle(), this))
 {
     setObjectName(QStringLiteral("workspaceTitleBar"));
@@ -34,7 +36,11 @@ WorkspaceTitleBar::WorkspaceTitleBar(QWidget *window)
     title_->setMinimumWidth(0);
     title_->setTextFormat(Qt::RichText);
     title_->setTextInteractionFlags(Qt::NoTextInteraction);
-    layout->addWidget(title_, 1);
+    layout->addWidget(title_);
+    layout->addWidget(commands);
+    auto *dragSpace = new QWidget(this);
+    layout->addWidget(dragSpace, 1);
+    new FramelessWidget(window_, dragSpace);
     auto *windowActions = new FramelessWidget(window_, title_);
     const auto makeButton = [this, layout](const QString &name)
     {
@@ -105,7 +111,8 @@ void WorkspaceTitleBar::updateMetrics()
     const int rightPadding = buttonWidth - buttonHeight - leftPadding;
     setFixedHeight(barHeight);
     // 保留系统缩放热区的避让，同时让按钮上下边距相等。
-    layout()->setContentsMargins(0, inset, vp(16), inset);
+    // 三键仍按原尺寸垂直居中；菜单使用标题栏全高，避免 26px 文字被内边距裁切。
+    layout()->setContentsMargins(0, 0, vp(16), 0);
     setStyleSheet(
         QStringLiteral(
             "#workspaceTitleBar { background: transparent; }"

@@ -87,7 +87,7 @@ ConversionWindow::ConversionWindow(const QString &mode, const QString &kind, QWi
     layout->setSpacing(0);
     if (taskMode_ == "convert")
     {
-        auto *titleBar = new WorkspaceTitleBar(this);
+        auto *titleBar = new WorkspaceTitleBar(this, functionBar_->commandBar());
         layout->addWidget(titleBar);
         // 复用 closeEvent，保留模式切换保护、编辑确认和首页交接流程。
         connect(titleBar, &WorkspaceTitleBar::closeRequested, this, &QWidget::close);
@@ -95,6 +95,11 @@ ConversionWindow::ConversionWindow(const QString &mode, const QString &kind, QWi
         connect(titleBar, &WorkspaceTitleBar::aboutDeviceRequested, &QtBridge::instance(),
                 &QtBridge::requestOpenAboutDevice);
 #endif
+    }
+    else
+    {
+        // 独立预览／编辑仍使用系统标题栏，菜单继续放在原功能条内。
+        functionBar_->insertWidget(functionBar_->actions().last(), functionBar_->commandBar());
     }
     layout->addWidget(functionBar_);
     splitter_->installEventFilter(this);

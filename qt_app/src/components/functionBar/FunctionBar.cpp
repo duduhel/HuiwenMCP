@@ -1,4 +1,4 @@
-/* 顶部文件与滚动入口；菜单选中项是同步状态的唯一来源，工作区接收变化后控制联动。 */
+/* 功能条与可嵌入标题栏的菜单区域；菜单选中项仍是同步状态的唯一来源。 */
 #include "FunctionBar.h"
 #include "FileMenu.h"
 #include "ModeMenu.h"
@@ -19,7 +19,8 @@
 #endif
 
 FunctionBar::FunctionBar(const QString &mode, QWidget *parent)
-    : QToolBar(parent), fileMenu_(new FileMenu(mode, this)), modeMenu_(new ModeMenu(this))
+    : QToolBar(parent), commands_(new QToolBar(this)), fileMenu_(new FileMenu(mode, this)),
+      modeMenu_(new ModeMenu(this))
 {
     setObjectName(QStringLiteral("workspaceFunctionBar"));
     setMovable(false);
@@ -28,11 +29,30 @@ FunctionBar::FunctionBar(const QString &mode, QWidget *parent)
     setFixedHeight(72);
     setContentsMargins(0, 0, 0, 0);
     setAutoFillBackground(false);
+    commands_->setObjectName(QStringLiteral("workspaceCommands"));
+    commands_->setMovable(false);
+    commands_->setFloatable(false);
+    commands_->setContextMenuPolicy(Qt::PreventContextMenu);
+    commands_->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+    commands_->setMinimumWidth(0);
+    commands_->setStyleSheet(QStringLiteral(
+        "QToolBar#workspaceCommands { background: transparent; border: none; "
+        "margin: 0; padding: 0; spacing: 0; }"
+        "QToolBar#workspaceCommands QToolButton { background: transparent; border: none; "
+        "border-radius: 8px; margin: 0; padding: 0 20px; color: #000000; "
+        "font-size: 26px; font-weight: 550; }"
+        "QToolBar#workspaceCommands QToolButton[selected=\"true\"] "
+        "{ background: #DCE1E8; }"
+        "QToolBar#workspaceCommands QToolButton:disabled { color: #A0A8B4; }"
+        "QToolBar#workspaceCommands QToolButton::menu-indicator "
+        "{ image: none; width: 0; height: 0; }"));
+    commands_->layout()->setContentsMargins(0, 0, 0, 0);
+    commands_->layout()->setSpacing(0);
     updateAppearance();
 
     const auto addMenuButton = [this](const QString &text, QMenu *menu)
     {
-        auto *button = new QToolButton(this);
+        auto *button = new QToolButton(commands_);
         button->setText(text);
         button->setToolButtonStyle(Qt::ToolButtonTextOnly);
         button->setCursor(Qt::PointingHandCursor);
@@ -49,14 +69,13 @@ FunctionBar::FunctionBar(const QString &mode, QWidget *parent)
         };
         connect(menu, &QMenu::aboutToShow, button, [setSelected] { setSelected(true); });
         connect(menu, &QMenu::aboutToHide, button, [setSelected] { setSelected(false); });
-        // 先应用继承样式再测量 28px 字体，避免按默认小字号分配宽度而裁切文字。
+        // 先应用菜单区域的 26px 字体，再测量宽度，避免迁入标题栏后文字裁切。
         button->ensurePolished();
         const int textWidth = std::max(button->fontMetrics().horizontalAdvance(text),
                                        button->fontMetrics().boundingRect(text).width());
-        const QMargins margins = layout()->contentsMargins();
-        button->setFixedSize(std::max(button->sizeHint().width(), textWidth + 40),
-                             height() - margins.top() - margins.bottom());
-        addWidget(button);
+        button->setFixedWidth(std::max(button->sizeHint().width(), textWidth + 40));
+        button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
+        commands_->addWidget(button);
         return button;
     };
     navigationToggle_ = new QToolButton(this);
@@ -94,7 +113,7 @@ FunctionBar::FunctionBar(const QString &mode, QWidget *parent)
     setMode(mode);
     auto *space = new QWidget(this);
     space->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-    trailingSpacer_ = addWidget(space);
+    addWidget(space);
 }
 
 void FunctionBar::updateAppearance()
@@ -153,6 +172,10 @@ bool FunctionBar::event(QEvent *event)
 }
 
 FileMenu *FunctionBar::fileMenu() const { return fileMenu_; }
+QToolBar *FunctionBar::commandBar() const
+{
+    return commands_;
+}
 ModeMenu *FunctionBar::modeMenu() const
 {
     return modeMenu_;
@@ -167,7 +190,7 @@ void FunctionBar::setMode(const QString &mode)
 QAction *FunctionBar::addCommand(const QString &text)
 {
     auto *action = new QAction(text, this);
-    insertAction(trailingSpacer_, action); // 保存等命令放在弹性留白之前，保持靠左。
+    commands_->addAction(action); // 保存等命令与三个菜单共用承载区域，保持靠左。
     return action;
 }
 

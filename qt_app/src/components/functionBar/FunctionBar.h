@@ -1,4 +1,4 @@
-/* 工作区顶部功能条：组装文件、滚动设置与模式菜单，不依赖预览或转换服务。 */
+/* 工作区功能条：保留侧栏入口，菜单控件可由标题栏承载，业务信号保持统一。 */
 #pragma once
 #include <QToolBar>
 class FileMenu;
@@ -11,6 +11,7 @@ class FunctionBar : public QToolBar
     Q_OBJECT
   public:
     explicit FunctionBar(const QString &mode, QWidget *parent = nullptr);
+    QToolBar *commandBar() const;
     FileMenu *fileMenu() const;
     ModeMenu *modeMenu() const;
     void setMode(const QString &mode);
@@ -27,10 +28,10 @@ class FunctionBar : public QToolBar
 
   private:
     void updateAppearance();
+    QToolBar *commands_;
     FileMenu *fileMenu_;
     ModeMenu *modeMenu_;
     QAction *synchronizedAction_ = nullptr;
-    QAction *trailingSpacer_ = nullptr;
     QToolButton *navigationToggle_ = nullptr;
     QToolButton *scrollButton_ = nullptr;
 };
