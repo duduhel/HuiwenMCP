@@ -54,6 +54,7 @@ export class QtSessionBridge {
         case 'pick': await workspace.onSelectDocument(event.kind ?? '', event.mode ?? ''); return;
         case 'open': await workspace.onOpenOutputLocation(event.path ?? ''); return;
         case 'openDirectory': await workspace.onOpenTaskDirectory(event.path ?? ''); return;
+        case 'exportOutput': await workspace.onExportOutput(event.path ?? ''); return;
         case 'aboutDevice': await workspace.onOpenAboutDevice(); return;
       }
     }
@@ -91,6 +92,11 @@ export class QtSessionBridge {
   // ArkTS → Qt：反馈任务目录打开请求；error 为空表示系统接受请求。
   completeTaskDirectoryOpen(error: string = ''): void {
     this.deliver({ action: 'openDirectory', error: error });
+  }
+
+  // ArkTS → Qt：导出目录与错误；两者均为空表示取消，不修改工作区输入输出。
+  completeOutputExport(path: string, error: string = ''): void {
+    this.deliver({ action: 'exportOutput', path: path, error: error });
   }
 
   // ArkTS → Qt：请求编辑器检查未保存内容，结果由 onCloseApproval 接收。

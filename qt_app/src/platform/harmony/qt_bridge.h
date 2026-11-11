@@ -22,6 +22,8 @@ class QtBridge : public QObject
     bool requestOpenOutputLocation(const QString &path);
     // Qt → ArkTS：校验并打开 path 指向的任务目录；请求结果经 directoryOpenCompleted 返回。
     bool requestOpenTaskDirectory(const QString &path);
+    // Qt → ArkTS：导出 path 对应的 output 及配套资源；结果经 outputExportCompleted 返回。
+    bool requestOutputExport(const QString &path);
     // Qt → ArkTS：打开系统设置的“关于本机”，与首页鸿蒙字标行为一致。
     bool requestOpenAboutDevice();
     // Qt → ArkTS：反馈 taskPath 的实际恢复结果，error 为空表示加载及使用时间更新成功。
@@ -56,6 +58,8 @@ class QtBridge : public QObject
     void workspaceRestorationRequested(const QJsonObject &result);
     // ArkTS → Qt：目录定位请求的结果，error 为空表示系统接受请求。
     void directoryOpenCompleted(const QString &error);
+    // ArkTS → Qt：path 为导出目录；path／error 均为空表示用户取消选择。
+    void outputExportCompleted(const QString &path, const QString &error);
     // ArkTS → Qt：下载完成回包，path 为目标文件，error 为空时才按成功处理。
     void screenshotDownloadCompleted(const QString &path, const QString &error);
 

@@ -39,6 +39,7 @@ class ConversionWindow : public QWidget
                    bool restoring = false);
     bool loadSelectedDocument();
     void refreshBusyState();
+    void exportOutput();
     void refreshScrollSync();
     bool scrollSyncEnabled() const;
     void selectDocument();
@@ -75,6 +76,7 @@ class ConversionWindow : public QWidget
     QLabel *status_;
     DocumentItem document_;
     bool picking_ = false;
+    bool exporting_ = false;
     bool converting_ = false;
     bool restoringWord_ = false;
     bool retry_ = false;

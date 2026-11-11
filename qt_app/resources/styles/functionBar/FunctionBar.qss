@@ -26,12 +26,17 @@ QToolBar#workspaceFunctionBar QToolButton[selected="true"] {
     background: #DCE1E8;
 }
 
-QToolBar#workspaceFunctionBar QToolButton#navigationSidebarToggle {
+QToolBar#workspaceFunctionBar QToolButton#navigationSidebarToggle,
+QToolBar#workspaceFunctionBar QToolButton#exportOutputButton {
     padding: 0;
     border-radius: 8px;
 }
 
 QToolBar#workspaceFunctionBar QToolButton#navigationSidebarToggle:checked {
+    background: #E5E5E5;
+}
+
+QToolBar#workspaceFunctionBar QToolButton#exportOutputButton:hover:enabled {
     background: #E5E5E5;
 }
 

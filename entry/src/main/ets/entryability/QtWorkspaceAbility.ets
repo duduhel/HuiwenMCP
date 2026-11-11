@@ -10,6 +10,7 @@ import { DocumentKind, DocumentMode, pickDocumentToSandbox } from '../utils/Docu
 import { CefWorkspaceProxy } from '../utils/CefPlatform';
 import { readSettings } from '../services/settings/AppSettings';
 import { ensureWorkspaceAccess } from '../services/settings/WorkspaceStorage';
+import { exportWorkspaceOutput } from '../services/WorkspaceExport';
 import { QtSessionBridge } from '../bridge/QtSessionBridge';
 import { applyHomeWindowColors } from '../utils/HomeAppearance';
 
@@ -148,6 +149,7 @@ export default class QtWorkspaceAbility extends UIAbility {
         onSelectDocument: (kind: string, mode: string): Promise<void> => this.selectDocument(kind, mode),
         onOpenOutputLocation: (path: string): Promise<void> => this.openRequestedLocation(path, false),
         onOpenTaskDirectory: (path: string): Promise<void> => this.openRequestedLocation(path, true),
+        onExportOutput: (path: string): Promise<void> => this.exportOutput(path),
         onOpenAboutDevice: (): Promise<void> => this.openAboutDevice()
       });
       hilog.info(0xFF00, 'QtWorkspace', 'HUIWEN_QT_START');
@@ -236,6 +238,26 @@ export default class QtWorkspaceAbility extends UIAbility {
     } finally {
       this.pickerBusy = false;
       if (!this.destroyed && !this.closing) { this.session.completeDocumentSelection(document, message); }
+    }
+  }
+
+  private async exportOutput(path: string): Promise<void> {
+    if (this.destroyed || this.closing) { return; }
+    if (this.pickerBusy) {
+      this.session.completeOutputExport('', '请先完成当前文件选择');
+      return;
+    }
+    this.pickerBusy = true;
+    let destination = '';
+    let message = '';
+    try {
+      destination = await exportWorkspaceOutput(this.context, path);
+    } catch (error) {
+      message = (error as Error).message;
+      hilog.error(0xFF00, 'QtWorkspace', 'HUIWEN_QT_EXPORT_FAILED: %{public}s', message);
+    } finally {
+      this.pickerBusy = false;
+      if (!this.destroyed && !this.closing) { this.session.completeOutputExport(destination, message); }
     }
   }
 

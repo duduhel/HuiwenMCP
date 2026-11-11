@@ -1,4 +1,7 @@
 <RCC>
+    <qresource prefix="/function-bar">
+        <file alias="export.svg">function-bar/export.svg</file>
+    </qresource>
     <qresource prefix="/file-icons">
         <file alias="pdf.png">file-icons/pdf.png</file>
         <file alias="md.png">file-icons/md.png</file>

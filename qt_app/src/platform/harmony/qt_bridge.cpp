@@ -194,10 +194,11 @@ napi_value SessionDeliverResult(napi_env env, napi_callback_info info)
     if (error.error != QJsonParseError::NoError || !document.isObject() ||
         !(documentResult || action == "open" || action == "openDirectory" ||
           action == "closeAborted" || action == "downloadScreenshot" || action == "confirmClose" ||
-          action == "close") ||
+          action == "close" || action == "exportOutput") ||
         (result.contains("error") && !result.value("error").isString()) ||
         (documentResult && !ValidDocumentResult(result)) ||
-        (action == "downloadScreenshot" && !result.value("path").isString()))
+        ((action == "downloadScreenshot" || action == "exportOutput") &&
+         !result.value("path").isString()))
     {
         napi_throw_type_error(env, nullptr, "Qt 会话结果协议无效");
         return nullptr;
@@ -220,6 +221,9 @@ napi_value SessionDeliverResult(napi_env env, napi_callback_info info)
                     else if (action == "downloadScreenshot")
                         emit bridge.screenshotDownloadCompleted(result.value("path").toString(),
                                                                 result.value("error").toString());
+                    else if (action == "exportOutput")
+                        emit bridge.outputExportCompleted(result.value("path").toString(),
+                                                          result.value("error").toString());
                     else if (action == "pick" || action == "restore")
                     {
                         auto document = result.value("document").toObject();
@@ -284,6 +288,10 @@ bool QtBridge::requestOpenOutputLocation(const QString &path)
 bool QtBridge::requestOpenTaskDirectory(const QString &path)
 {
     return post("openDirectory", {{"path", path}});
+}
+bool QtBridge::requestOutputExport(const QString &path)
+{
+    return post("exportOutput", {{"path", path}});
 }
 bool QtBridge::requestOpenAboutDevice() { return post("aboutDevice"); }
 bool QtBridge::notifyWorkspaceRestoreResult(const QString &taskPath, const QString &error)

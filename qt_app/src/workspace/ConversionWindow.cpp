@@ -101,7 +101,7 @@ ConversionWindow::ConversionWindow(const QString &mode, const QString &kind, QWi
     {
         // 独立预览／编辑仍使用系统标题栏，菜单继续放在原功能条内。
         titleActions_ = new TitleBarActions(mode, this);
-        functionBar_->insertWidget(functionBar_->actions().last(), titleActions_);
+        functionBar_->addLeadingWidget(titleActions_);
     }
     layout->addWidget(functionBar_);
     splitter_->installEventFilter(this);
@@ -119,6 +119,18 @@ ConversionWindow::ConversionWindow(const QString &mode, const QString &kind, QWi
     layout->addWidget(status_);
     connect(functionBar_, &FunctionBar::navigationSidebarToggled, this,
             &ConversionWindow::toggleNavigationSidebar);
+    connect(functionBar_, &FunctionBar::exportRequested, this, &ConversionWindow::exportOutput);
+#ifdef Q_OS_OPENHARMONY
+    connect(&QtBridge::instance(), &QtBridge::outputExportCompleted, this,
+            [this](const QString &path, const QString &error)
+            {
+                exporting_ = false;
+                status_->setText(!error.isEmpty() ? QStringLiteral("导出失败：") + error
+                                 : path.isEmpty() ? QStringLiteral("已取消导出")
+                                                  : QStringLiteral("已导出到：") + path);
+                refreshBusyState();
+            });
+#endif
     connect(bodySplitter_, &QSplitter::splitterMoved, this,
             [this]
             {
@@ -368,7 +380,7 @@ void ConversionWindow::createDocumentViews(bool preview)
 
 void ConversionWindow::switchMode(const QString &mode)
 {
-    if (picking_ || converting_ || switching_ || pendingSnapshot_ || closeApproved_ ||
+    if (picking_ || exporting_ || converting_ || switching_ || pendingSnapshot_ || closeApproved_ ||
         !ModeSwitchDialog::hasUsableFile(document_, mode))
         return;
     switching_ = true;
@@ -628,20 +640,66 @@ void ConversionWindow::placeConvertButton()
 
 void ConversionWindow::refreshBusyState()
 {
-    const bool busy = picking_ || converting_ || switching_ || pendingSnapshot_ || closeApproved_;
+    const bool busy =
+        picking_ || exporting_ || converting_ || switching_ || pendingSnapshot_ || closeApproved_;
     if (source_)
         source_->setBusy(busy);
     titleActions_->fileMenu()->setDocumentState(document_, busy);
     titleActions_->modeMenu()->setState(mode_, document_, busy);
+    functionBar_->setExportEnabled(!busy && !document_.outputPath.isEmpty() &&
+                                   QFileInfo(document_.outputPath).isFile());
     if (button_)
         button_->setState(!document_.inputPath.isEmpty(), busy, retry_);
     placeConvertButton();
     updateEditState();
 }
 
+void ConversionWindow::exportOutput()
+{
+    if (picking_ || exporting_ || converting_ || switching_ || pendingSnapshot_ || closeApproved_)
+        return;
+    const auto start = [this]
+    {
+        QString path;
+        try
+        {
+            path = SandboxStore::validateWorkspaceFile(
+                document_, SandboxStore::workspaceOutputPath(document_));
+        }
+        catch (const std::exception &error)
+        {
+            status_->setText(QString::fromUtf8(error.what()));
+            return;
+        }
+#ifdef Q_OS_OPENHARMONY
+        exporting_ = true;
+        status_->setText(QStringLiteral("请选择导出目录…"));
+        refreshBusyState();
+        if (!QtBridge::instance().requestOutputExport(path))
+        {
+            exporting_ = false;
+            status_->setText(QStringLiteral("无法导出：鸿蒙文件接口尚未就绪"));
+            refreshBusyState();
+        }
+#else
+        status_->setText(QStringLiteral("当前平台尚未接入系统导出接口"));
+#endif
+    };
+    // 编辑器先返回最新快照并保存至 output，系统选择器只负责导出已落盘的结果。
+    if (editor_)
+        requestEditSnapshot(
+            [this, start](bool ok)
+            {
+                if (ok && saveEdit())
+                    start();
+            });
+    else
+        start();
+}
+
 void ConversionWindow::selectDocument()
 {
-    if (picking_ || converting_ || switching_ || pendingSnapshot_ || closeApproved_)
+    if (picking_ || exporting_ || converting_ || switching_ || pendingSnapshot_ || closeApproved_)
         return;
     if (editor_)
     {
@@ -669,7 +727,7 @@ void ConversionWindow::showDocument(const DocumentItem &document)
 
 void ConversionWindow::restoreDocument(const DocumentItem &document)
 {
-    if (picking_ || converting_ || switching_)
+    if (picking_ || exporting_ || converting_ || switching_)
     {
         sandbox_->finishRestoration(document, QStringLiteral("工作区正在处理文件，请稍后重试"));
         return;
@@ -699,7 +757,8 @@ void ConversionWindow::updateEditState()
     setWindowTitle(QStringLiteral("汇文MCP · Markdown 编辑%1").arg(editDirty_ ? " *" : ""));
     if (saveAction_)
         saveAction_->setEnabled(!document_.inputPath.isEmpty() && editor_->isPreviewReady() &&
-                                !picking_ && !switching_ && !closeApproved_ && !pendingSnapshot_);
+                                !picking_ && !exporting_ && !switching_ && !closeApproved_ &&
+                                !pendingSnapshot_);
 }
 
 bool ConversionWindow::saveEdit()
@@ -747,7 +806,7 @@ bool ConversionWindow::saveEdit()
     livePreview_->sendMarkdownMessage(location);
     sandbox_->markUsed(document_);
     status_->setText(QStringLiteral("已保存到 output，后续继续编辑此版本"));
-    updateEditState();
+    refreshBusyState();
     return true;
 }
 
@@ -815,7 +874,7 @@ void ConversionWindow::checkUnsaved(std::function<void(bool)> completed)
 
 void ConversionWindow::requestClosePermission(std::function<void(bool)> completed)
 {
-    if (switching_ || pendingSnapshot_)
+    if (exporting_ || switching_ || pendingSnapshot_)
     {
         completed(false);
         return;

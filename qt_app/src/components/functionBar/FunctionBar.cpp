@@ -37,8 +37,22 @@ FunctionBar::FunctionBar(QWidget *parent) : QToolBar(parent)
         emit navigationSidebarToggled(visible);
     });
     addWidget(navigationToggle_);
+
+    auto *stretch = new QWidget(this);
+    stretch->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    stretchAction_ = addWidget(stretch);
+    exportButton_ = new QToolButton(this);
+    exportButton_->setObjectName(QStringLiteral("exportOutputButton"));
+    exportButton_->setIcon(QIcon(QStringLiteral(":/function-bar/export.svg")));
+    exportButton_->setIconSize(QSize(20, 20));
+    exportButton_->setFixedSize(44, 44);
+    exportButton_->setCursor(Qt::PointingHandCursor);
+    exportButton_->setToolTip(QStringLiteral("导出输出文件"));
+    exportButton_->setAccessibleName(QStringLiteral("导出输出文件"));
+    exportButton_->setEnabled(false);
+    connect(exportButton_, &QToolButton::clicked, this, &FunctionBar::exportRequested);
+    addWidget(exportButton_);
     trailingSpace_ = new QWidget(this);
-    trailingSpace_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     addWidget(trailingSpace_);
     updateAppearance();
 }
@@ -72,7 +86,17 @@ void FunctionBar::updateAppearance()
     layout()->setContentsMargins(8, 8, 8, 8);
     layout()->setSpacing(0);
     leadingSpace_->setFixedWidth(radius);
-    trailingSpace_->setMinimumWidth(radius);
+    trailingSpace_->setFixedWidth(radius);
+}
+
+void FunctionBar::addLeadingWidget(QWidget *widget)
+{
+    insertWidget(stretchAction_, widget);
+}
+
+void FunctionBar::setExportEnabled(bool enabled)
+{
+    exportButton_->setEnabled(enabled);
 }
 
 bool FunctionBar::event(QEvent *event)
