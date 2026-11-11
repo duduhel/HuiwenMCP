@@ -1,5 +1,6 @@
 /* 工作区自绘标题栏：标识与窗口三键之间承载菜单，留白继续作为窗口拖动区。 */
 #include "WorkspaceTitleBar.h"
+#include "TitleBarActions.h"
 #include "cust/framelesswidget.h"
 #include <QCursor>
 #include <QEvent>
@@ -9,7 +10,6 @@
 #include <QMenu>
 #include <QScreen>
 #include <QStyle>
-#include <QToolBar>
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <QVariant>
@@ -19,8 +19,9 @@
 #include <window_manager/oh_display_manager.h>
 #endif
 
-WorkspaceTitleBar::WorkspaceTitleBar(QWidget *window, QToolBar *commands)
-    : QWidget(window), window_(window), title_(new QLabel(window->windowTitle(), this))
+WorkspaceTitleBar::WorkspaceTitleBar(const QString &mode, QWidget *window)
+    : QWidget(window), window_(window), title_(new QLabel(window->windowTitle(), this)),
+      titleActions_(new TitleBarActions(mode, this))
 {
     setObjectName(QStringLiteral("workspaceTitleBar"));
     setAttribute(Qt::WA_StyledBackground);
@@ -37,7 +38,7 @@ WorkspaceTitleBar::WorkspaceTitleBar(QWidget *window, QToolBar *commands)
     title_->setTextFormat(Qt::RichText);
     title_->setTextInteractionFlags(Qt::NoTextInteraction);
     layout->addWidget(title_);
-    layout->addWidget(commands);
+    layout->addWidget(titleActions_);
     auto *dragSpace = new QWidget(this);
     layout->addWidget(dragSpace, 1);
     new FramelessWidget(window_, dragSpace);
@@ -66,6 +67,11 @@ WorkspaceTitleBar::WorkspaceTitleBar(QWidget *window, QToolBar *commands)
     connect(&maximizeMenuDelay_, &QTimer::timeout, this, &WorkspaceTitleBar::showMaximizeMenu);
     window_->installEventFilter(this);
     updateMetrics();
+}
+
+TitleBarActions *WorkspaceTitleBar::titleActions() const
+{
+    return titleActions_;
 }
 
 void WorkspaceTitleBar::updateMetrics()

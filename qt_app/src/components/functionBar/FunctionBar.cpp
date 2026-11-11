@@ -1,26 +1,15 @@
-/* 功能条与可嵌入标题栏的菜单区域；菜单选中项仍是同步状态的唯一来源。 */
+/* 工作区功能条只管理侧栏及后续业务入口，不持有标题栏菜单或菜单状态。 */
 #include "FunctionBar.h"
-#include "FileMenu.h"
-#include "ModeMenu.h"
-#include "SelectionMenu.h"
 #include "sidebars/common/SidebarIcons.h"
-#include <QAction>
-#include <QActionGroup>
 #include <QEvent>
-#include <QFontMetrics>
 #include <QLayout>
 #include <QScreen>
-#include <QStyle>
 #include <QToolButton>
-#include <QVariant>
-#include <algorithm>
 #ifdef Q_OS_OPENHARMONY
 #include <window_manager/oh_display_manager.h>
 #endif
 
-FunctionBar::FunctionBar(const QString &mode, QWidget *parent)
-    : QToolBar(parent), commands_(new QToolBar(this)), fileMenu_(new FileMenu(mode, this)),
-      modeMenu_(new ModeMenu(this))
+FunctionBar::FunctionBar(QWidget *parent) : QToolBar(parent)
 {
     setObjectName(QStringLiteral("workspaceFunctionBar"));
     setMovable(false);
@@ -29,55 +18,8 @@ FunctionBar::FunctionBar(const QString &mode, QWidget *parent)
     setFixedHeight(72);
     setContentsMargins(0, 0, 0, 0);
     setAutoFillBackground(false);
-    commands_->setObjectName(QStringLiteral("workspaceCommands"));
-    commands_->setMovable(false);
-    commands_->setFloatable(false);
-    commands_->setContextMenuPolicy(Qt::PreventContextMenu);
-    commands_->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
-    commands_->setMinimumWidth(0);
-    commands_->setStyleSheet(QStringLiteral(
-        "QToolBar#workspaceCommands { background: transparent; border: none; "
-        "margin: 0; padding: 0; spacing: 0; }"
-        "QToolBar#workspaceCommands QToolButton { background: transparent; border: none; "
-        "border-radius: 8px; margin: 0; padding: 0 20px; color: #000000; "
-        "font-size: 26px; font-weight: 550; }"
-        "QToolBar#workspaceCommands QToolButton[selected=\"true\"] "
-        "{ background: #DCE1E8; }"
-        "QToolBar#workspaceCommands QToolButton:disabled { color: #A0A8B4; }"
-        "QToolBar#workspaceCommands QToolButton::menu-indicator "
-        "{ image: none; width: 0; height: 0; }"));
-    commands_->layout()->setContentsMargins(0, 0, 0, 0);
-    commands_->layout()->setSpacing(0);
     updateAppearance();
 
-    const auto addMenuButton = [this](const QString &text, QMenu *menu)
-    {
-        auto *button = new QToolButton(commands_);
-        button->setText(text);
-        button->setToolButtonStyle(Qt::ToolButtonTextOnly);
-        button->setCursor(Qt::PointingHandCursor);
-        button->setPopupMode(QToolButton::InstantPopup);
-        button->setMenu(menu);
-        button->setProperty("selected", false);
-        // 背景只取决于菜单是否展开，避免关闭后残留 hover/pressed 高亮。
-        const auto setSelected = [button](bool selected)
-        {
-            button->setProperty("selected", selected);
-            button->style()->unpolish(button);
-            button->style()->polish(button);
-            button->update();
-        };
-        connect(menu, &QMenu::aboutToShow, button, [setSelected] { setSelected(true); });
-        connect(menu, &QMenu::aboutToHide, button, [setSelected] { setSelected(false); });
-        // 先应用菜单区域的 26px 字体，再测量宽度，避免迁入标题栏后文字裁切。
-        button->ensurePolished();
-        const int textWidth = std::max(button->fontMetrics().horizontalAdvance(text),
-                                       button->fontMetrics().boundingRect(text).width());
-        button->setFixedWidth(std::max(button->sizeHint().width(), textWidth + 40));
-        button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
-        commands_->addWidget(button);
-        return button;
-    };
     navigationToggle_ = new QToolButton(this);
     navigationToggle_->setObjectName("navigationSidebarToggle");
     navigationToggle_->setIcon(sidebarIcon());
@@ -92,25 +34,6 @@ FunctionBar::FunctionBar(const QString &mode, QWidget *parent)
         emit navigationSidebarToggled(visible);
     });
     addWidget(navigationToggle_);
-    addMenuButton(QStringLiteral("文件"), fileMenu_);
-    // 保持入口位置稳定；单栏预览下禁用滚动设置，不移走后方的模式菜单。
-    {
-        auto *menu = new SelectionMenu(this);
-        auto *modes = new QActionGroup(menu);
-        modes->setExclusive(true);
-        synchronizedAction_ = menu->addAction(QStringLiteral("同步滚动"));
-        auto *oneWay = menu->addAction(QStringLiteral("单向滚动"));
-        for (auto *action : {synchronizedAction_, oneWay})
-        {
-            action->setCheckable(true);
-            modes->addAction(action);
-        }
-        synchronizedAction_->setChecked(true);
-        connect(synchronizedAction_, &QAction::toggled, this, &FunctionBar::scrollSyncChanged);
-        scrollButton_ = addMenuButton(QStringLiteral("滚动设置"), menu);
-    }
-    addMenuButton(QStringLiteral("模式"), modeMenu_);
-    setMode(mode);
     auto *space = new QWidget(this);
     space->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     addWidget(space);
@@ -169,34 +92,6 @@ bool FunctionBar::event(QEvent *event)
         event->type() == QEvent::ApplicationFontChange)
         updateAppearance();
     return QToolBar::event(event);
-}
-
-FileMenu *FunctionBar::fileMenu() const { return fileMenu_; }
-QToolBar *FunctionBar::commandBar() const
-{
-    return commands_;
-}
-ModeMenu *FunctionBar::modeMenu() const
-{
-    return modeMenu_;
-}
-
-void FunctionBar::setMode(const QString &mode)
-{
-    fileMenu_->setMode(mode);
-    scrollButton_->setEnabled(mode != "preview");
-}
-
-QAction *FunctionBar::addCommand(const QString &text)
-{
-    auto *action = new QAction(text, this);
-    commands_->addAction(action); // 保存等命令与三个菜单共用承载区域，保持靠左。
-    return action;
-}
-
-bool FunctionBar::isScrollSynchronized() const
-{
-    return synchronizedAction_ && synchronizedAction_->isChecked();
 }
 
 void FunctionBar::setNavigationSidebarVisible(bool visible)

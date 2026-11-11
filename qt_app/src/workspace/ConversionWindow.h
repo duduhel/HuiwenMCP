@@ -7,6 +7,7 @@
 class DocumentView;
 class ConvertButton;
 class FunctionBar;
+class TitleBarActions;
 class ConversionService;
 class SandboxService;
 class WorkspaceSplitter;
@@ -68,6 +69,7 @@ class ConversionWindow : public QWidget
     DocumentView *result_ = nullptr;
     ConvertButton *button_ = nullptr;
     FunctionBar *functionBar_;
+    TitleBarActions *titleActions_ = nullptr;
     ConversionService *conversion_ = nullptr;
     SandboxService *sandbox_;
     QLabel *status_;

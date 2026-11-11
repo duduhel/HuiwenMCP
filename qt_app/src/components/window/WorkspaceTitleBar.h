@@ -4,15 +4,16 @@
 class QLabel;
 class QMenu;
 class QToolButton;
-class QToolBar;
+class TitleBarActions;
 
-// 标题栏承载菜单与窗口操作；菜单业务留在 FunctionBar，拖动与双击复用 cust。
+// 标题栏直接组合 TitleBarActions 与窗口三键；拖动与双击复用 cust。
 class WorkspaceTitleBar : public QWidget
 {
     Q_OBJECT
 
   public:
-    WorkspaceTitleBar(QWidget *window, QToolBar *commands);
+    WorkspaceTitleBar(const QString &mode, QWidget *window);
+    TitleBarActions *titleActions() const;
   signals:
     void closeRequested();
     void aboutDeviceRequested();
@@ -28,6 +29,7 @@ class WorkspaceTitleBar : public QWidget
     void hideMaximizeMenu();
     QWidget *window_;
     QLabel *title_;
+    TitleBarActions *titleActions_;
     QToolButton *harmonyLogo_;
     QToolButton *maximize_ = nullptr;
     QToolButton *minimize_ = nullptr;

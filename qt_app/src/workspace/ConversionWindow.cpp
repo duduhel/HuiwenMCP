@@ -2,11 +2,12 @@
 #include "ConversionWindow.h"
 #include "WorkspaceMode.h"
 #include "components/ConvertButton.h"
-#include "components/functionBar/FileMenu.h"
 #include "components/functionBar/FunctionBar.h"
-#include "components/functionBar/ModeMenu.h"
 #include "components/splitter/WorkspaceSplitter.h"
+#include "components/window/TitleBarActions.h"
 #include "components/window/WorkspaceTitleBar.h"
+#include "components/window/menus/FileMenu.h"
+#include "components/window/menus/ModeMenu.h"
 #include "dialogs/ModeSwitchDialog.h"
 #include "documentView/DocumentView.h"
 #include "documentView/renderers/markdown/MarkdownPreviewWidget.h"
@@ -46,7 +47,7 @@
 ConversionWindow::ConversionWindow(const QString &mode, const QString &kind, QWidget *parent)
     : QWidget(parent), taskMode_(mode), taskKind_(kind), mode_(mode), kind_(kind),
       splitter_(new WorkspaceSplitter(this)), bodySplitter_(new WorkspaceSplitter(this)),
-      navigationSidebar_(new NavigationSidebar(this)), functionBar_(new FunctionBar(mode, this)),
+      navigationSidebar_(new NavigationSidebar(this)), functionBar_(new FunctionBar(this)),
       conversion_(new ConversionService(this)), sandbox_(new SandboxService(this)),
       status_(new QLabel(this))
 {
@@ -87,7 +88,8 @@ ConversionWindow::ConversionWindow(const QString &mode, const QString &kind, QWi
     layout->setSpacing(0);
     if (taskMode_ == "convert")
     {
-        auto *titleBar = new WorkspaceTitleBar(this, functionBar_->commandBar());
+        auto *titleBar = new WorkspaceTitleBar(mode, this);
+        titleActions_ = titleBar->titleActions();
         layout->addWidget(titleBar);
         // 复用 closeEvent，保留模式切换保护、编辑确认和首页交接流程。
         connect(titleBar, &WorkspaceTitleBar::closeRequested, this, &QWidget::close);
@@ -99,7 +101,8 @@ ConversionWindow::ConversionWindow(const QString &mode, const QString &kind, QWi
     else
     {
         // 独立预览／编辑仍使用系统标题栏，菜单继续放在原功能条内。
-        functionBar_->insertWidget(functionBar_->actions().last(), functionBar_->commandBar());
+        titleActions_ = new TitleBarActions(mode, this);
+        functionBar_->insertWidget(functionBar_->actions().last(), titleActions_);
     }
     layout->addWidget(functionBar_);
     splitter_->installEventFilter(this);
@@ -125,13 +128,13 @@ ConversionWindow::ConversionWindow(const QString &mode, const QString &kind, QWi
                 placeConvertButton();
             });
     connect(splitter_, &QSplitter::splitterMoved, this, [this] { placeConvertButton(); });
-    connect(functionBar_, &FunctionBar::scrollSyncChanged, this,
+    connect(titleActions_, &TitleBarActions::scrollSyncChanged, this,
             &ConversionWindow::refreshScrollSync);
-    connect(functionBar_->modeMenu(), &ModeMenu::modeRequested, this,
+    connect(titleActions_->modeMenu(), &ModeMenu::modeRequested, this,
             &ConversionWindow::switchMode);
-    connect(functionBar_->modeMenu(), &ModeMenu::replacementRequested, this,
+    connect(titleActions_->modeMenu(), &ModeMenu::replacementRequested, this,
             &ConversionWindow::selectDocument);
-    connect(functionBar_->fileMenu(), &FileMenu::previewModeRequested, this,
+    connect(titleActions_->fileMenu(), &FileMenu::previewModeRequested, this,
             [this](bool preview)
             {
                 source_->setPreviewMode(preview);
@@ -140,7 +143,7 @@ ConversionWindow::ConversionWindow(const QString &mode, const QString &kind, QWi
                 refreshScrollSync();
                 placeConvertButton();
             });
-    connect(functionBar_->fileMenu(), &FileMenu::directoryRequested, this,
+    connect(titleActions_->fileMenu(), &FileMenu::directoryRequested, this,
             [this](bool output) { sandbox_->openTaskDirectory(document_, output); });
     connect(sandbox_, &SandboxService::documentSelected, this, &ConversionWindow::showDocument);
     connect(sandbox_, &SandboxService::restorationRequested, this, [this](const DocumentItem &document) {
@@ -178,7 +181,7 @@ ConversionWindow::ConversionWindow(const QString &mode, const QString &kind, QWi
                 {
                     sandbox_->markUsed(document_);
                     result_->setDocument(path, QStringLiteral("md"));
-                    functionBar_->fileMenu()->setPreviewMode(true);
+                    titleActions_->fileMenu()->setPreviewMode(true);
                     status_->setText(QStringLiteral("[code=0] %1 路径：%2").arg(message, path));
                 }
                 else
@@ -215,7 +218,7 @@ ConversionWindow::ConversionWindow(const QString &mode, const QString &kind, QWi
                     sandbox_->finishRestoration(document_, error);
                 }
             });
-    saveAction_ = functionBar_->addCommand(QStringLiteral("保存"));
+    saveAction_ = titleActions_->addCommand(QStringLiteral("保存"));
     connect(saveAction_, &QAction::triggered, this,
             [this]
             {
@@ -299,7 +302,7 @@ void ConversionWindow::createDocumentViews(bool preview)
         splitter_->addWidget(result_);
         splitter_->setSizes({600, 600});
     }
-    functionBar_->setMode(mode_);
+    titleActions_->setMode(mode_);
     saveAction_->setVisible(editor_ != nullptr);
     navigationSidebar_->setOutline({}, false);
     const auto refreshPreview = [this]
@@ -361,7 +364,7 @@ void ConversionWindow::createDocumentViews(bool preview)
                                               .arg(kind_ == "word" ? "Word"
                                                    : kind_ == "md" ? "Markdown"
                                                                    : "PDF"));
-    functionBar_->fileMenu()->setPreviewMode(preview);
+    titleActions_->fileMenu()->setPreviewMode(preview);
 }
 
 void ConversionWindow::switchMode(const QString &mode)
@@ -415,7 +418,7 @@ void ConversionWindow::applyMode(const QString &mode, const QString &path,
         return;
     }
     const bool preview = restoring || mode != mode_ || WorkspaceMode::kindOf(path) != kind_ ||
-                         functionBar_->fileMenu()->isPreviewMode();
+                         titleActions_->fileMenu()->isPreviewMode();
     switching_ = true;
     refreshBusyState();
     source_->hide();
@@ -629,8 +632,8 @@ void ConversionWindow::refreshBusyState()
     const bool busy = picking_ || converting_ || switching_ || pendingSnapshot_ || closeApproved_;
     if (source_)
         source_->setBusy(busy);
-    functionBar_->fileMenu()->setDocumentState(document_, busy);
-    functionBar_->modeMenu()->setState(mode_, document_, busy);
+    titleActions_->fileMenu()->setDocumentState(document_, busy);
+    titleActions_->modeMenu()->setState(mode_, document_, busy);
     if (button_)
         button_->setState(!document_.inputPath.isEmpty(), busy, retry_);
     placeConvertButton();
@@ -918,6 +921,6 @@ void ConversionWindow::handleOutline(const QJsonObject &message)
 bool ConversionWindow::scrollSyncEnabled() const
 {
     // 单向滚动不向另一侧转发位置；同步滚动仍要求左右预览均已就绪。
-    return result_ && functionBar_->isScrollSynchronized() && source_->isPreviewReady() &&
+    return result_ && titleActions_->isScrollSynchronized() && source_->isPreviewReady() &&
            result_->isPreviewReady();
 }

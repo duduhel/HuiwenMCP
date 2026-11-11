@@ -1,26 +1,16 @@
-/* 工作区功能条：保留侧栏入口，菜单控件可由标题栏承载，业务信号保持统一。 */
+/* 工作区功能条：管理侧栏开关及后续业务入口，与标题栏菜单相互独立。 */
 #pragma once
 #include <QToolBar>
-class FileMenu;
-class ModeMenu;
-class QAction;
 class QToolButton;
 
 class FunctionBar : public QToolBar
 {
     Q_OBJECT
   public:
-    explicit FunctionBar(const QString &mode, QWidget *parent = nullptr);
-    QToolBar *commandBar() const;
-    FileMenu *fileMenu() const;
-    ModeMenu *modeMenu() const;
-    void setMode(const QString &mode);
-    bool isScrollSynchronized() const;
-    QAction *addCommand(const QString &text);
+    explicit FunctionBar(QWidget *parent = nullptr);
     void setNavigationSidebarVisible(bool visible);
 
   signals:
-    void scrollSyncChanged(bool synchronized);
     void navigationSidebarToggled(bool visible);
 
   protected:
@@ -28,10 +18,5 @@ class FunctionBar : public QToolBar
 
   private:
     void updateAppearance();
-    QToolBar *commands_;
-    FileMenu *fileMenu_;
-    ModeMenu *modeMenu_;
-    QAction *synchronizedAction_ = nullptr;
     QToolButton *navigationToggle_ = nullptr;
-    QToolButton *scrollButton_ = nullptr;
 };

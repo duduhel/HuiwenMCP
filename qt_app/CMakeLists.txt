@@ -11,6 +11,7 @@ set(workspace_sources
     main.cpp
     ../entry/src/main/cpp/cust/framelesswidget.cpp
     src/components/window/WorkspaceTitleBar.cpp
+    src/components/window/TitleBarActions.cpp
     resources/file-icons.qrc
     resources/markdown.qrc
     resources/word.qrc
@@ -27,10 +28,10 @@ set(workspace_sources
     src/components/splitter/WorkspaceSplitter.cpp
     src/components/scrollBar/DocumentScrollBar.cpp
     src/components/functionBar/FunctionBar.cpp
-    src/components/functionBar/FileMenu.cpp
-    src/components/functionBar/ModeMenu.cpp
+    src/components/window/menus/FileMenu.cpp
+    src/components/window/menus/ModeMenu.cpp
     src/workspace/dialogs/ModeSwitchDialog.cpp
-    src/components/functionBar/SelectionMenu.cpp
+    src/components/window/menus/SelectionMenu.cpp
     src/sidebars/navigation/NavigationSidebar.cpp
     src/sidebars/navigation/components/SidebarSection.cpp
     src/sidebars/navigation/components/SidebarSectionList.cpp
