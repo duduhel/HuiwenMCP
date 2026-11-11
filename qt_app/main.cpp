@@ -23,7 +23,7 @@ int main(int argc, char *argv[])
     app.setQuitOnLastWindowClosed(false);
 #endif
     app.setApplicationName("HuiwenMCP");
-    app.setApplicationDisplayName(QStringLiteral("汇文MCP"));
+    // 不设置 displayName，避免鸿蒙 QPA 自动给各窗口标题追加应用名。
     app.setWindowIcon(QIcon(QStringLiteral(":/branding/app_icon.png")));
 #ifdef Q_OS_OPENHARMONY
     // 待迁移：窗口基类可接管展示/关闭钩子；Ability 身份与 NAPI 交接仍留在平台侧。

@@ -8,6 +8,7 @@
 #include "components/window/WorkspaceTitleBar.h"
 #include "components/window/menus/FileMenu.h"
 #include "components/window/menus/ModeMenu.h"
+#include "dialogs/ExportOutputDialog.h"
 #include "dialogs/ModeSwitchDialog.h"
 #include "documentView/DocumentView.h"
 #include "documentView/renderers/markdown/MarkdownPreviewWidget.h"
@@ -657,6 +658,15 @@ void ConversionWindow::refreshBusyState()
 void ConversionWindow::exportOutput()
 {
     if (picking_ || exporting_ || converting_ || switching_ || pendingSnapshot_ || closeApproved_)
+        return;
+    // 与 ArkTS 导出服务使用相同的默认名称；取消确认不保存编辑或打开系统选择器。
+    ExportOutputDialog dialog(QFileInfo(document_.outputPath).completeBaseName().left(64), this);
+    exporting_ = true;
+    refreshBusyState();
+    const bool accepted = dialog.exec() == QDialog::Accepted;
+    exporting_ = false;
+    refreshBusyState();
+    if (!accepted)
         return;
     const auto start = [this]
     {

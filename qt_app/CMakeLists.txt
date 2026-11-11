@@ -32,6 +32,7 @@ set(workspace_sources
     src/components/window/menus/FileMenu.cpp
     src/components/window/menus/ModeMenu.cpp
     src/workspace/dialogs/ModeSwitchDialog.cpp
+    src/workspace/dialogs/ExportOutputDialog.cpp
     src/components/window/menus/SelectionMenu.cpp
     src/sidebars/navigation/NavigationSidebar.cpp
     src/sidebars/navigation/components/SidebarSection.cpp
