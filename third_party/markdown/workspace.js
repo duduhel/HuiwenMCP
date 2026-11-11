@@ -11,6 +11,7 @@ const report = value => window.huiwenReportMarkdown?.(JSON.stringify(value));
 let editor, body, revision = 0, lines = 1, timer, observer, frame;
 let appliedTop = null, lastPosition = null, pendingPosition = null;
 let currentSource, cachedAnchors;
+let active = true;
 let reportOutline = () => {};
 const editability = new Compartment();
 const isEditor = () => location.pathname === '/editor.html';
@@ -46,7 +47,7 @@ function position() {
 }
 
 function scrollToSource(p, useLine = false) {
-  if (p.revision !== revision) return;
+  if (!active || p.revision !== revision) return;
   let top = clamp(p.progress) * range();
   if (useLine || (p.progress > 0 && p.progress < 1)) {
     if (editor) {
@@ -68,9 +69,10 @@ function scrollToSource(p, useLine = false) {
 }
 
 function queuePosition() {
-  if (frame) return;
+  if (!active || frame) return;
   frame = requestAnimationFrame(() => {
     frame = null;
+    if (!active) return;
     if (appliedTop !== null && Math.abs(scroller().scrollTop - appliedTop) < 1) return;
     appliedTop = null;
     lastPosition = position();
@@ -87,6 +89,12 @@ function snapshot(type = 'change', request = 0) {
     report({ type, text, revision, request });
     reportOutline(text, revision);
   }
+}
+
+function observeContent() {
+  if (!active || editor) return;
+  observer?.observe(body);
+  for (const node of body.querySelectorAll('.md-source-block')) observer?.observe(node);
 }
 
 function render(source, nextRevision) {
@@ -107,8 +115,7 @@ function render(source, nextRevision) {
     });
     cachedAnchors = null;
     scrollToSource({ ...old, revision });
-    observer?.observe(body);
-    for (const node of body.querySelectorAll('.md-source-block')) observer?.observe(node);
+    observeContent();
     void renderDiagrams(body, reusable);
   }
   if (lastPosition) lastPosition.revision = revision;
@@ -119,6 +126,24 @@ function render(source, nextRevision) {
 
 export function receiveWorkspace(message) {
   if (!body) return;
+  if (message.type === 'visibility' && typeof message.active === 'boolean') {
+    // 暂停显示相关任务；保存、快照和编辑状态不受影响。
+    if (active === message.active) return;
+    if (!message.active) {
+      lastPosition = position();
+      observer?.disconnect();
+      if (frame) cancelAnimationFrame(frame);
+      frame = null;
+    }
+    active = message.active;
+    if (active) {
+      cachedAnchors = null;
+      observeContent();
+      if (lastPosition) scrollToSource(lastPosition);
+      queuePosition();
+    }
+    return;
+  }
   if (message.type === 'navigate' && message.revision === revision &&
       Number.isInteger(message.line) && message.line >= 1) {
     if (editor) {
@@ -133,7 +158,7 @@ export function receiveWorkspace(message) {
     if (message.revision === revision) scrollToSource(message);
     else if (!isEditor() && message.revision > revision) pendingPosition = message;
   }
-  if (message.type === 'publish') report(position());
+  if (message.type === 'publish' && active) report(position());
   if (message.type === 'snapshot' && editor) {
     editor.dispatch({ effects: editability.reconfigure(EditorView.editable.of(false)) });
     snapshot('snapshot', message.request);
@@ -180,6 +205,7 @@ export function showWorkspace(source, showBrokenImage, copyCode, publishOutline)
   } else {
     editor = null;
     observer ||= new ResizeObserver(() => {
+      if (!active) return;
       cachedAnchors = null;
       if (lastPosition) scrollToSource(lastPosition);
     });

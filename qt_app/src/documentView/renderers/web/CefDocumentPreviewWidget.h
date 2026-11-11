@@ -47,6 +47,8 @@ class CefDocumentPreviewWidget : public QWidget, public DocumentRenderer
   private:
     void openBrowser();
     void closeBrowser();
+    // 临时隐藏只暂停显示与位置上报；真正关闭仍走 closeBrowser／工作区关闭回执。
+    void updateVisibility(bool visible);
     QRect browserRect() const;
     class Private;
     std::unique_ptr<Private> d_;

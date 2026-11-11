@@ -130,13 +130,6 @@ export default class QtWorkspaceAbility extends UIAbility {
     }
   }
 
-  onForeground(): void {
-    // 首次前台早于 QPA 内容就绪，首次配置由 workspaceShown 负责。
-    if (this.workspaceReady) {
-      this.refreshWindowControls();
-    }
-  }
-
   onWindowStageCreate(windowStage: window.WindowStage): void {
     try {
       // 任一工作区均可原地切入 PDF 转化，统一准备内置业务包；命中缓存时不重复部署。

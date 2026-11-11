@@ -7,6 +7,21 @@ export function receiveWorkspace(message) {
     receiveEditorMessage(message);
     return;
   }
+  if (message.type === 'visibility' && typeof message.active === 'boolean') {
+    // 后台只停位置计算与观察，前台复用原正文，不再次解析 Markdown。
+    if (active === message.active) return;
+    if (!message.active) {
+      lastPosition = scrollPosition();
+      observer?.disconnect();
+    }
+    active = message.active;
+    if (active) {
+      observer?.observe(document.getElementById('markdown-body'));
+      restorePosition();
+      queuePosition();
+    }
+    return;
+  }
   if (message.type !== 'navigate' || message.revision !== 0 ||
       !Number.isInteger(message.line) || message.line < 1) return;
   const heading = document.querySelector(`[data-heading-line="${message.line}"]`);
@@ -92,6 +107,7 @@ function reportOutline(source, revision) {
 let pages = [];
 let pageIndexes = new Map();
 let listening = false;
+let active = true;
 let framePending = false;
 let observer;
 let appliedTop = null;
@@ -124,7 +140,7 @@ export function scrollPosition() {
 }
 
 export function setScrollPosition(page, fraction, progress) {
-  if (![page, fraction, progress].every(Number.isFinite)) return;
+  if (!active || ![page, fraction, progress].every(Number.isFinite)) return;
   const range = scrollRange();
   const index = pageIndexes.get(page) ?? -1;
   let target = clamp(progress) * range;
@@ -142,6 +158,7 @@ export function setScrollPosition(page, fraction, progress) {
 
 function publishPosition() {
   framePending = false;
+  if (!active) return;
   lastPosition = scrollPosition();
   if (!initialReport && appliedTop !== null && Math.abs(window.scrollY - appliedTop) < 1) return;
   initialReport = false;
@@ -151,7 +168,7 @@ function publishPosition() {
 }
 
 function queuePosition() {
-  if (framePending) return;
+  if (!active || framePending) return;
   framePending = true;
   window.requestAnimationFrame(publishPosition);
 }

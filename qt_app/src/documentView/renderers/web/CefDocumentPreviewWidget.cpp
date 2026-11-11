@@ -6,6 +6,7 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
+#include <QGuiApplication>
 #include <QHideEvent>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -312,12 +313,13 @@ class PreviewClient final : public CefClient,
             CefRuntime::instance().finishClose();
         }
     }
-    void geometry(const QRect &bounds, bool visible)
+    void geometry(const QRect &bounds, bool visible, bool active)
     {
         // Qt 和 CEF 分属不同线程；队列里只留一个任务，未执行的尺寸直接替换为最新值。
         std::lock_guard<std::mutex> lock(geometryMutex_);
         requestedBounds_ = bounds;
         requestedVisible_ = visible;
+        requestedActive_ = active;
         if (geometryQueued_)
             return;
         geometryQueued_ = true;
@@ -326,14 +328,15 @@ class PreviewClient final : public CefClient,
             [self]
             {
                 QRect bounds;
-                bool visible;
+                bool visible, active;
                 {
                     std::lock_guard<std::mutex> lock(self->geometryMutex_);
                     bounds = self->requestedBounds_;
                     visible = self->requestedVisible_;
+                    active = self->requestedActive_;
                     self->geometryQueued_ = false;
                 }
-                self->applyGeometry(bounds, visible);
+                self->applyGeometry(bounds, visible, active);
             });
     }
     void close()
@@ -360,6 +363,9 @@ class PreviewClient final : public CefClient,
     }
     void sendMarkdown(const QJsonObject &message)
     {
+        if (message.value("type").toString() == QStringLiteral("visibility") &&
+            !url_.startsWith(QStringLiteral("https://huiwen-md.invalid/")))
+            return;
         if (message.value("type").toString() == QStringLiteral("location"))
         {
             std::lock_guard<std::mutex> lock(imageRootMutex_);
@@ -443,7 +449,10 @@ class PreviewClient final : public CefClient,
                          error.substr(0, 512).c_str());
             loaded_ = ready;
             if (ready)
+            {
                 setScrollBarVisible(scrollBarVisible_);
+                sendMarkdown({{"type", "visibility"}, {"active", pageActive_}});
+            }
             notice_(ready, QString::fromStdString(error));
             return true;
         }
@@ -552,7 +561,7 @@ class PreviewClient final : public CefClient,
     }
 
   private:
-    void applyGeometry(const QRect &bounds, bool visible)
+    void applyGeometry(const QRect &bounds, bool visible, bool active)
     {
         // 只在 CEF UI 线程访问浏览器和已应用状态；关闭后的排队任务不能再触碰原生节点。
         if (!browser_ || closing_ || CefRuntime::instance().stopping)
@@ -560,7 +569,10 @@ class PreviewClient final : public CefClient,
         const bool move = !bounds.isEmpty() && bounds.topLeft() != appliedBounds_.topLeft();
         const bool resize = !bounds.isEmpty() && bounds.size() != appliedBounds_.size();
         visible = visible && loaded_ && !bounds.isEmpty();
-        if (!move && !resize && visible == nodeVisible_)
+        active = active && visible;
+        const bool visibilityChanged = visible != nodeVisible_;
+        const bool activityChanged = active != pageActive_;
+        if (!move && !resize && !visibilityChanged && !activityChanged)
             return;
         using namespace EMBEDDED_WINDOW_ADAPTER;
         auto *node = reinterpret_cast<Node *>(browser_->GetHost()->GetWindowHandle());
@@ -568,7 +580,7 @@ class PreviewClient final : public CefClient,
             return;
         if ((move && !EWAdapterC::moveNode(node, bounds.x(), bounds.y())) ||
             (resize && !EWAdapterC::resizeNode(node, bounds.width(), bounds.height())) ||
-            (visible != nodeVisible_ && !EWAdapterC::setNodeVisibility(node, visible)))
+            (visibilityChanged && !EWAdapterC::setNodeVisibility(node, visible)))
         {
             qWarning() << "HUIWEN_CEF stage=geometry_failed boundsWindow=" << bounds;
             return;
@@ -576,15 +588,20 @@ class PreviewClient final : public CefClient,
         if (!bounds.isEmpty())
             appliedBounds_ = bounds;
         nodeVisible_ = visible;
+        pageActive_ = active;
+        if (activityChanged)
+            sendMarkdown({{"type", "visibility"}, {"active", active}});
         // 原生窗口依赖 XComponent 的尺寸通知；WasResized/WasHidden 仅用于离屏渲染。
     }
 
     std::mutex geometryMutex_;
     QRect requestedBounds_;
     bool requestedVisible_ = false;
+    bool requestedActive_ = false;
     bool geometryQueued_ = false;
     QRect appliedBounds_;
     bool nodeVisible_ = false;
+    bool pageActive_ = false;
     QString url_;
     const QByteArray html_;
     QString text_;
@@ -617,6 +634,7 @@ class CefDocumentPreviewWidget::Private
     QString path;
     bool valid = false;
     bool ready = false;
+    bool visible = false;
     int generation = 0;
     bool scrollBarVisible = true;
 #ifdef Q_OS_OPENHARMONY
@@ -637,6 +655,7 @@ CefDocumentPreviewWidget::CefDocumentPreviewWidget(Format format, QWidget *paren
     d_->timer = new QTimer(this);
     d_->timer->setInterval(100);
     connect(d_->timer, &QTimer::timeout, this, &CefDocumentPreviewWidget::openBrowser);
+    connect(qApp, &QGuiApplication::applicationStateChanged, this, [this] { syncGeometry(); });
 }
 
 CefDocumentPreviewWidget::~CefDocumentPreviewWidget()
@@ -720,7 +739,7 @@ void CefDocumentPreviewWidget::setDocument(const QString &path)
 
 void CefDocumentPreviewWidget::openBrowser()
 {
-    if (!d_->valid || !isVisible())
+    if (!d_->valid || !d_->visible)
         return;
 #ifdef Q_OS_OPENHARMONY
     if (d_->client)
@@ -777,7 +796,7 @@ void CefDocumentPreviewWidget::openBrowser()
                     {
                         self->d_->ready = true;
                         emit self->documentOpened(self->d_->path);
-                        emit self->previewReadyChanged(true);
+                        emit self->previewReadyChanged(self->d_->visible);
                     }
                     if (!ready)
                     {
@@ -795,20 +814,24 @@ void CefDocumentPreviewWidget::openBrowser()
                 qApp,
                 [self, generation, page, fraction, progress]
                 {
-                    if (!self || self->d_->generation != generation || !self->isVisible())
+                    if (!self || self->d_->generation != generation)
                         return;
                     if (!self->d_->ready)
                     {
+                        self->d_->timer->stop();
                         self->d_->ready = true;
                         emit self->documentOpened(self->d_->path);
-                        emit self->previewReadyChanged(true);
+                        emit self->previewReadyChanged(self->d_->visible);
                         return;
                     }
+                    if (!self->d_->visible)
+                        return;
                     emit self->scrollPositionChanged(page, fraction, progress);
                 },
                 Qt::QueuedConnection);
         },
-        [self, generation](const QJsonObject &message) {
+        [self, generation](const QJsonObject &message)
+        {
             QMetaObject::invokeMethod(qApp, [self, generation, message] {
                 if (self && self->d_->generation == generation)
                     emit self->markdownMessage(message);
@@ -886,7 +909,10 @@ void CefDocumentPreviewWidget::closeBrowser()
 #endif
 }
 
-bool CefDocumentPreviewWidget::isPreviewReady() const { return d_->ready && isVisible(); }
+bool CefDocumentPreviewWidget::isPreviewReady() const
+{
+    return d_->ready && d_->visible;
+}
 
 void CefDocumentPreviewWidget::setScrollPosition(int page, double fraction, double progress)
 {
@@ -922,16 +948,38 @@ void CefDocumentPreviewWidget::setViewOptions(const DocumentViewOptions &options
 
 void CefDocumentPreviewWidget::syncGeometry()
 {
+    const auto state = QGuiApplication::applicationState();
+    updateVisibility(isVisible() && window()->isVisible() && !window()->isMinimized() &&
+                     state != Qt::ApplicationHidden && state != Qt::ApplicationSuspended);
+}
+
+void CefDocumentPreviewWidget::updateVisibility(bool visible)
+{
+    const bool changed = visible != d_->visible;
+    d_->visible = visible;
+    if (!visible)
+    {
+        d_->timer->stop();
+        d_->waiting.invalidate();
+    }
 #ifdef Q_OS_OPENHARMONY
+    else if (changed && d_->valid && !d_->ready && !d_->timer->isActive())
+    {
+        // 后台时间不计入加载超时，回到前台继续等待原页面，不重新导航。
+        d_->waiting.start();
+        d_->timer->start();
+    }
     if (d_->client && CefRuntime::instance().state == CefRuntime::Ready)
     {
         const auto client = d_->client;
         const QRect bounds = browserRect();
-        const bool visible =
-            !bounds.isEmpty() && isVisible() && window()->isVisible() && !window()->isMinimized();
-        client->geometry(bounds, visible);
+        // 业务区域隐藏才隐藏 CEF 节点；父窗口退后台时保留子节点，由系统隐藏整窗。
+        const bool contentVisible = isVisibleTo(window());
+        client->geometry(bounds, contentVisible, visible);
     }
 #endif
+    if (changed && d_->ready)
+        emit previewReadyChanged(visible);
 }
 
 QRect CefDocumentPreviewWidget::browserRect() const
@@ -943,25 +991,14 @@ void CefDocumentPreviewWidget::showEvent(QShowEvent *event)
 {
     QWidget::showEvent(event);
     window()->installEventFilter(this);
-    openBrowser();
     syncGeometry();
-    if (d_->ready && (d_->format == Format::MarkdownEditor || d_->format == Format::MarkdownLive))
-        emit previewReadyChanged(true);
+    openBrowser();
 }
 
 void CefDocumentPreviewWidget::hideEvent(QHideEvent *event)
 {
-    if (d_->format == Format::MarkdownEditor || d_->format == Format::MarkdownLive)
-    {
-        // 编辑器隐藏时只暂停原生 Surface，保留未保存草稿。
-        d_->timer->stop();
-#ifdef Q_OS_OPENHARMONY
-        if (d_->client)
-            d_->client->geometry(browserRect(), false);
-#endif
-    }
-    else
-        closeBrowser();
+    // 所有文档都保留原浏览器、DOM 和滚动位置；切换文档或关闭工作区才释放。
+    updateVisibility(false);
     QWidget::hideEvent(event);
 }
 
@@ -981,8 +1018,10 @@ bool CefDocumentPreviewWidget::eventFilter(QObject *watched, QEvent *event)
 {
     if (watched == window())
     {
+        if (event->type() == QEvent::Hide)
+            updateVisibility(false);
         if (event->type() == QEvent::Resize || event->type() == QEvent::Move ||
-            event->type() == QEvent::WindowStateChange)
+            event->type() == QEvent::WindowStateChange || event->type() == QEvent::Show)
             syncGeometry();
     }
     return QWidget::eventFilter(watched, event);
