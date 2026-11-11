@@ -6,6 +6,7 @@ export interface BridgeEvent {
   sessionId: number;
   action: string;
   path?: string;
+  relativePath?: string;
   kind?: string;
   mode?: string;
   taskPath?: string;
@@ -44,8 +45,8 @@ export interface WorkspaceHandlers {
   onOpenOutputLocation: (path: string) => Promise<void>;
   // 打开任务目录：path 是待校验的任务或 input／output 目录。
   onOpenTaskDirectory: (path: string) => Promise<void>;
-  // 导出输出：path 为待校验的 MD 输出文件，随同目录资源一起导出。
-  onExportOutput: (path: string) => Promise<void>;
+  // 导出输出：path 为待校验的 MD 锚点，relativePath 为空导出整个 output，否则只导出该文件。
+  onExportOutput: (path: string, relativePath: string) => Promise<void>;
   // 鸿蒙字标点击：打开系统设置的“关于本机”。
   onOpenAboutDevice: () => Promise<void>;
 }

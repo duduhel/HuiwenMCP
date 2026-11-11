@@ -289,9 +289,9 @@ bool QtBridge::requestOpenTaskDirectory(const QString &path)
 {
     return post("openDirectory", {{"path", path}});
 }
-bool QtBridge::requestOutputExport(const QString &path)
+bool QtBridge::requestOutputExport(const QString &path, const QString &relativePath)
 {
-    return post("exportOutput", {{"path", path}});
+    return post("exportOutput", {{"path", path}, {"relativePath", relativePath}});
 }
 bool QtBridge::requestOpenAboutDevice() { return post("aboutDevice"); }
 bool QtBridge::notifyWorkspaceRestoreResult(const QString &taskPath, const QString &error)

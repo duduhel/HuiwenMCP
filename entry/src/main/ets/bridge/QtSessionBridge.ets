@@ -54,7 +54,8 @@ export class QtSessionBridge {
         case 'pick': await workspace.onSelectDocument(event.kind ?? '', event.mode ?? ''); return;
         case 'open': await workspace.onOpenOutputLocation(event.path ?? ''); return;
         case 'openDirectory': await workspace.onOpenTaskDirectory(event.path ?? ''); return;
-        case 'exportOutput': await workspace.onExportOutput(event.path ?? ''); return;
+        case 'exportOutput':
+          await workspace.onExportOutput(event.path ?? '', event.relativePath ?? ''); return;
         case 'aboutDevice': await workspace.onOpenAboutDevice(); return;
       }
     }
@@ -94,7 +95,7 @@ export class QtSessionBridge {
     this.deliver({ action: 'openDirectory', error: error });
   }
 
-  // ArkTS → Qt：导出目录与错误；两者均为空表示取消，不修改工作区输入输出。
+  // ArkTS → Qt：导出文件／目录与错误；两者均为空表示取消，不修改工作区输入输出。
   completeOutputExport(path: string, error: string = ''): void {
     this.deliver({ action: 'exportOutput', path: path, error: error });
   }

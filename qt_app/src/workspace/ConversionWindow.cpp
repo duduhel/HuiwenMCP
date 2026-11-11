@@ -659,8 +659,19 @@ void ConversionWindow::exportOutput()
 {
     if (picking_ || exporting_ || converting_ || switching_ || pendingSnapshot_ || closeApproved_)
         return;
-    // 与 ArkTS 导出服务使用相同的默认名称；取消确认不保存编辑或打开系统选择器。
-    ExportOutputDialog dialog(QFileInfo(document_.outputPath).completeBaseName().left(64), this);
+    QString output;
+    try
+    {
+        output = SandboxStore::validateWorkspaceFile(document_,
+                                                     SandboxStore::workspaceOutputPath(document_));
+    }
+    catch (const std::exception &error)
+    {
+        status_->setText(QString::fromUtf8(error.what()));
+        return;
+    }
+    // 只读取已校验的 output 清单；取消确认不保存编辑或打开系统选择器。
+    ExportOutputDialog dialog(output, this);
     exporting_ = true;
     refreshBusyState();
     const bool accepted = dialog.exec() == QDialog::Accepted;
@@ -668,7 +679,8 @@ void ConversionWindow::exportOutput()
     refreshBusyState();
     if (!accepted)
         return;
-    const auto start = [this]
+    const QString relativePath = dialog.selectedRelativePath();
+    const auto start = [this, relativePath]
     {
         QString path;
         try
@@ -683,9 +695,10 @@ void ConversionWindow::exportOutput()
         }
 #ifdef Q_OS_OPENHARMONY
         exporting_ = true;
-        status_->setText(QStringLiteral("请选择导出目录…"));
+        status_->setText(relativePath.isEmpty() ? QStringLiteral("请选择导出目录…")
+                                                : QStringLiteral("请选择文件保存位置…"));
         refreshBusyState();
-        if (!QtBridge::instance().requestOutputExport(path))
+        if (!QtBridge::instance().requestOutputExport(path, relativePath))
         {
             exporting_ = false;
             status_->setText(QStringLiteral("无法导出：鸿蒙文件接口尚未就绪"));

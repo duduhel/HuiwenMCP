@@ -149,7 +149,7 @@ export default class QtWorkspaceAbility extends UIAbility {
         onSelectDocument: (kind: string, mode: string): Promise<void> => this.selectDocument(kind, mode),
         onOpenOutputLocation: (path: string): Promise<void> => this.openRequestedLocation(path, false),
         onOpenTaskDirectory: (path: string): Promise<void> => this.openRequestedLocation(path, true),
-        onExportOutput: (path: string): Promise<void> => this.exportOutput(path),
+        onExportOutput: (path: string, relativePath: string): Promise<void> => this.exportOutput(path, relativePath),
         onOpenAboutDevice: (): Promise<void> => this.openAboutDevice()
       });
       hilog.info(0xFF00, 'QtWorkspace', 'HUIWEN_QT_START');
@@ -241,7 +241,7 @@ export default class QtWorkspaceAbility extends UIAbility {
     }
   }
 
-  private async exportOutput(path: string): Promise<void> {
+  private async exportOutput(path: string, relativePath: string): Promise<void> {
     if (this.destroyed || this.closing) { return; }
     if (this.pickerBusy) {
       this.session.completeOutputExport('', '请先完成当前文件选择');
@@ -251,7 +251,7 @@ export default class QtWorkspaceAbility extends UIAbility {
     let destination = '';
     let message = '';
     try {
-      destination = await exportWorkspaceOutput(this.context, path);
+      destination = await exportWorkspaceOutput(this.context, path, relativePath);
     } catch (error) {
       message = (error as Error).message;
       hilog.error(0xFF00, 'QtWorkspace', 'HUIWEN_QT_EXPORT_FAILED: %{public}s', message);
