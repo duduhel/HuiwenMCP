@@ -40,7 +40,7 @@ FunctionBar::FunctionBar(QWidget *parent) : QToolBar(parent)
 
     auto *stretch = new QWidget(this);
     stretch->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-    stretchAction_ = addWidget(stretch);
+    addWidget(stretch);
     exportButton_ = new QToolButton(this);
     exportButton_->setObjectName(QStringLiteral("exportOutputButton"));
     exportButton_->setIcon(QIcon(QStringLiteral(":/function-bar/export.svg")));
@@ -87,11 +87,6 @@ void FunctionBar::updateAppearance()
     layout()->setSpacing(0);
     leadingSpace_->setFixedWidth(radius);
     trailingSpace_->setFixedWidth(radius);
-}
-
-void FunctionBar::addLeadingWidget(QWidget *widget)
-{
-    insertWidget(stretchAction_, widget);
 }
 
 void FunctionBar::setExportEnabled(bool enabled)

@@ -96,9 +96,7 @@ export default class QtWorkspaceAbility extends UIAbility {
   }
 
   private configureWindowTitleBar(target: window.Window): void {
-    if (this.mode !== DocumentMode.Convert) {
-      return;
-    }
+    // 文档工作区的所有模式统一使用 Qt 自绘标题栏和窗口三键。
     try {
       target.setWindowDecorVisible(false);
       target.setWindowTitleButtonVisible(false, false, false);
@@ -116,7 +114,7 @@ export default class QtWorkspaceAbility extends UIAbility {
   }
 
   private async refreshWindowControls(): Promise<void> {
-    if (this.mode !== DocumentMode.Convert || this.destroyed || this.closing) {
+    if (this.destroyed || this.closing) {
       return;
     }
     try {

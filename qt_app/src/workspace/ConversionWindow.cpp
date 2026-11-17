@@ -53,57 +53,42 @@ ConversionWindow::ConversionWindow(const QString &mode, const QString &kind, QWi
       conversion_(new ConversionService(this)), sandbox_(new SandboxService(this)),
       status_(new QLabel(this))
 {
-    if (taskMode_ == "convert")
-        setWindowFlag(Qt::FramelessWindowHint);
+    // 预览、编辑和转化统一使用 WorkspaceTitleBar，不再混用系统标题栏。
+    setWindowFlag(Qt::FramelessWindowHint);
     setMinimumSize(640, 480);
-    setAutoFillBackground(true);
     QPalette colors = palette();
     colors.setColor(QPalette::Window, QColor("#F5F7FB"));
     colors.setColor(QPalette::Base, colors.color(QPalette::Window));
-    setPalette(colors);
     setObjectName(QStringLiteral("conversionWindow"));
     setAttribute(Qt::WA_StyledBackground);
-    setStyleSheet(loadStyle(QStringLiteral(":/styles/workspace/ConversionWindow.qss"))
-                      .arg(colors.color(QPalette::Window).name()));
-    if (taskMode_ == "convert")
-    {
-        // QWidget 与鸿蒙原生绘图节点分别取自己的背景角色，正文继续使用实色。
-        setAttribute(Qt::WA_TranslucentBackground);
-        setAutoFillBackground(false);
-        QPalette transparentColors = colors;
-        transparentColors.setColor(QPalette::Window, Qt::transparent);
+    // QWidget 与鸿蒙原生绘图节点分别取自己的背景角色，正文继续使用实色。
+    setAttribute(Qt::WA_TranslucentBackground);
+    setAutoFillBackground(false);
+    QPalette transparentColors = colors;
+    transparentColors.setColor(QPalette::Window, Qt::transparent);
 #ifdef Q_OS_OPENHARMONY
-        transparentColors.setColor(QPalette::XComponentBackground, Qt::transparent);
+    transparentColors.setColor(QPalette::XComponentBackground, Qt::transparent);
 #endif
-        setPalette(transparentColors);
-        setStyleSheet(styleSheet() +
-                      loadStyle(QStringLiteral(":/styles/workspace/TransparentWindow.qss")));
-        bodySplitter_->setPalette(colors);
-        bodySplitter_->setAutoFillBackground(true);
-        status_->setPalette(colors);
-        status_->setAutoFillBackground(true);
-    }
+    setPalette(transparentColors);
+    setStyleSheet(loadStyle(QStringLiteral(":/styles/workspace/ConversionWindow.qss"))
+                      .arg(colors.color(QPalette::Window).name()) +
+                  loadStyle(QStringLiteral(":/styles/workspace/TransparentWindow.qss")));
+    bodySplitter_->setPalette(colors);
+    bodySplitter_->setAutoFillBackground(true);
+    status_->setPalette(colors);
+    status_->setAutoFillBackground(true);
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
-    if (taskMode_ == "convert")
-    {
-        auto *titleBar = new WorkspaceTitleBar(mode, this);
-        titleActions_ = titleBar->titleActions();
-        layout->addWidget(titleBar);
-        // 复用 closeEvent，保留模式切换保护、编辑确认和首页交接流程。
-        connect(titleBar, &WorkspaceTitleBar::closeRequested, this, &QWidget::close);
+    auto *titleBar = new WorkspaceTitleBar(mode, this);
+    titleActions_ = titleBar->titleActions();
+    layout->addWidget(titleBar);
+    // 所有模式复用 closeEvent，保留编辑确认和首页交接流程。
+    connect(titleBar, &WorkspaceTitleBar::closeRequested, this, &QWidget::close);
 #ifdef Q_OS_OPENHARMONY
-        connect(titleBar, &WorkspaceTitleBar::aboutDeviceRequested, &QtBridge::instance(),
-                &QtBridge::requestOpenAboutDevice);
+    connect(titleBar, &WorkspaceTitleBar::aboutDeviceRequested, &QtBridge::instance(),
+            &QtBridge::requestOpenAboutDevice);
 #endif
-    }
-    else
-    {
-        // 独立预览／编辑仍使用系统标题栏，菜单继续放在原功能条内。
-        titleActions_ = new TitleBarActions(mode, this);
-        functionBar_->addLeadingWidget(titleActions_);
-    }
     layout->addWidget(functionBar_);
     splitter_->installEventFilter(this);
     bodySplitter_->addWidget(navigationSidebar_);
@@ -370,12 +355,7 @@ void ConversionWindow::createDocumentViews(bool preview)
     source_->show();
     if (result_)
         result_->show();
-    setWindowTitle(mode_ == "edit"      ? QStringLiteral("汇文 MCP · Markdown 编辑")
-                   : mode_ == "convert" ? QStringLiteral("汇文 MCP")
-                                        : QStringLiteral("汇文 MCP · %1 预览")
-                                              .arg(kind_ == "word" ? "Word"
-                                                   : kind_ == "md" ? "Markdown"
-                                                                   : "PDF"));
+    setWindowTitle(QStringLiteral("汇文 MCP"));
     titleActions_->fileMenu()->setPreviewMode(preview);
 }
 
@@ -777,7 +757,7 @@ void ConversionWindow::refreshScrollSync()
 void ConversionWindow::updateEditState()
 {
     if (!editor_) return;
-    setWindowTitle(QStringLiteral("汇文 MCP · Markdown 编辑%1").arg(editDirty_ ? " *" : ""));
+    setWindowTitle(QStringLiteral("汇文 MCP%1").arg(editDirty_ ? " *" : ""));
     if (saveAction_)
         saveAction_->setEnabled(!document_.inputPath.isEmpty() && editor_->isPreviewReady() &&
                                 !picking_ && !exporting_ && !switching_ && !closeApproved_ &&

@@ -122,7 +122,7 @@ Qt／CEF 继续使用原来的固定预编译 SDK／`.so`，不新增内核源�
 - ArkTS 首页左侧有 60vp 半透明窄侧栏，底部 36vp 三横线 SVG 按钮可打开“关于、外观、截图、文件管理、设置”菜单。菜单通过实际布局坐标，让菜单底部与按钮底部对齐，菜单左边与按钮右边保持 8vp 间距；外观二级菜单提供浅色、深色、跟随系统，选择持久保存并应用于 ArkTS 首页和弹窗；Qt 工作区仍使用自身配色。关于弹窗读取实际应用版本号；截图、文件管理、设置本阶段只保留入口并提示暂未开放。首页内容背景与窗口容器分别设置透明，焦点态容器透明，非焦点态使用实色，右侧主内容保持不透明。
 - Qt 开发依赖保存在 `third_party/qt/`，运行库从 `entry/libs/arm64-v8a/` 链接并随 HAP 分发；PDFium fork 保存在 `third_party/pdfium/source/`，Qt 左侧输入区域已接入其公开 C API 实现正文预览；已完成鸿蒙编译、HAP 打包；系统目录跳转沿用原有实现。
 - DevEco Run 构建前执行 `PrepareNativeDependencies`，按当前 PDFium 源码增量生成 `libpdfium.so`；Qt/NAPI 的 C++ 编译后同步新库到 `libs`。没有保存源码自动构建、应用内动态替换库或保持进程状态的热重载。
-- Qt 工作区默认最大化并保留系统标题栏和窗口边框，输入、输出区域解耦；中部分割线可拖动，悬浮“转化”按钮随分隔线移动。
+- Qt 工作区的预览、编辑、转化模式统一使用 `WorkspaceTitleBar` 自绘标题栏和窗口三键，菜单统一放在标题栏，功能条保留侧栏与导出入口；转化首次全屏，预览和编辑首次最大化。输入、输出区域解耦；中部分割线可拖动，悬浮“转化”按钮随分隔线移动。
 - 文档区域共用 `DocumentView : QStackedWidget`，由工作区注入 PDF、Markdown 或 Word 渲染器；文件卡片、预览切换、忙碌状态与对外信号集中维护。PDF 继承公共 `RasterDocumentViewport`，复用独立绘图窗口、滚动条和惯性能力；CEF 保留浏览器自身滚动。Word 通过 PortOne `readOnly` 模式显示 DOCX，与 MD 共用 `CefDocumentPreviewWidget` 的 CEF 生命周期和原生定位；Word 编辑与保存尚未接入，Markdown 已有独立编辑与保存流程。本次通用化重构仅完成格式检查，尚未编译、打包或设备验收。
 - 输入文件卡片通过 DocumentStore 获取系统选取授权，再经 NAPI 调用 C++ harmony_sandbox 完成沙箱复制和路径安排。两侧操作统一到顶部“文件”菜单：查看模式默认预览，可切换为占位图；左侧由 PDFium 显示多页 PDF，右侧已有结果时由 CEF 显示 MD。转换成功自动切到预览并隐藏转化按钮；更换文件保留当前查看方式，清空旧结果并恢复按钮，取消选择保留原状态；尚未生成 MD 时仍显示等待提示。PDFium 后台串行渲染可见页，连续尺寸变化合并请求；位图缓存上限为 64 MiB，超长页面降低采样分辨率。Qt ConversionService 仍复用 PythonRunner 转换。本次默认预览及按钮显隐调整仅做格式检查，尚未编译、打包或真机验收。
 - 原有 Python HNP 自检与 PDF 转换已由用户在真机验证成功。新增 Qt 窗口交接、选择与结果位置操作需要真机验收。
@@ -273,7 +273,7 @@ HuiwenMCP/
 
 鸿蒙跳转由 `HomePage.ets → startAbility(QtWorkspaceAbility) → QPA.startQtApplication() → libhuiwen_qt.so/main()` 完成。Qt 窗口实际显示后通过 NAPI 线程安全回调通知新 Ability；新 Ability 通过应用 EventHub 通知首页，只有发起跳转的首页消费一次通知并调用 `terminateSelf()`。这只结束首页 Ability，不结束应用进程。
 
-返回链为 `ConversionWindow::closeEvent() → QtBridge.request("close") → QtWorkspaceAbility.returnHome()`：先启动首页，收到 `EntryAbility` 页面加载且进入前台的 `huiwen.home.ready` 后，经 `workspaceReply({action:"close"})` 通知 Qt 隐藏窗体并关闭浏览器实例；全部实例关闭后 Qt 回传 `closed`，工作区 Ability 才结束。QPA 已把系统标题栏关闭转为 Qt `closeEvent`，不重复注册关闭监听。CEF 平台的关闭请求也复用 `returnHome()`。
+返回链为 `ConversionWindow::closeEvent() → QtBridge.request("close") → QtWorkspaceAbility.returnHome()`：先启动首页，收到 `EntryAbility` 页面加载且进入前台的 `huiwen.home.ready` 后，经 `workspaceReply({action:"close"})` 通知 Qt 隐藏窗体并关闭浏览器实例；全部实例关闭后 Qt 回传 `closed`，工作区 Ability 才结束。各模式的自绘标题栏关闭按钮统一调用 Qt `close()`，经 `closeEvent` 完成编辑确认，不重复注册关闭监听。CEF 平台的关闭请求也复用 `returnHome()`。
 
 QPA 在进程内只启动一次 Qt 主循环，CEF 引擎也保留到应用退出。每次工作区注册/解除现有 NAPI 回调时，Qt 创建/释放对应的 `ConversionWindow`，下次进入仍使用 `showMaximized()`；关闭工作区不调用 `CefShutdown()`。窗口管理暂放 `main.cpp` 与 `closeEvent()`，后续再迁入窗口基类。本次仅做格式检查，连续往返和 CEF 展示仍需真机验收。
 
@@ -586,14 +586,14 @@ hvigorw assembleHap --mode module -p product=default -p module=entry@default
 
 本阶段页面入口为 `qt_app/src/workspace/ConversionWindow.cpp`。未创建后续侧栏目录；新增侧栏时使用 `sidebars/`，避免与输入/输出区域混淆。
 
-1. 点击 ArkTS 首页“文档转化”，再点击独立格式选择窗口中的“PDF → MD”，格式子窗口关闭后打开 Qt；Qt 默认最大化并保留系统标题栏、窗口边框及窗口控制按钮。查看 `QtWorkspace` 标签下的 `HUIWEN_QT_START`、`HUIWEN_QT_READY`，确认只有 `EntryAbility` 随后结束，`QtWorkspaceAbility` 保持运行；不应再出现 `newLocalStorage not found`、`Need object`。
+1. 点击 ArkTS 首页“文档转化”，再点击独立格式选择窗口中的“PDF → MD”，格式子窗口关闭后打开 Qt；Qt 转化工作区首次全屏，使用自绘标题栏和窗口控制按钮；预览、编辑首次最大化并复用同一标题栏。查看 `QtWorkspace` 标签下的 `HUIWEN_QT_START`、`HUIWEN_QT_READY`，确认只有 `EntryAbility` 随后结束，`QtWorkspaceAbility` 保持运行；不应再出现 `newLocalStorage not found`、`Need object`。
 2. 左右文档区域占满状态栏上方的可用高度，底部状态栏保持紧凑；还原窗口并调整大小时布局应同步变化。悬停中间细线出现水平分割光标；拖动改变两侧宽度，底部小型“转化”按钮保持居中在线上。
 3. 进入工作区应默认选中“文件 → 查看模式 → 预览模式”，业务仍是“转化模式”。点击左侧虚线加号选择 PDF，默认直接显示 PDF 预览；手动切到占位图时显示文件卡片。拖动分隔线或缩放窗口后，页面应按当前可用宽度重排。“模式 → 转化模式 → 更换文件”应保留查看方式、清空旧 MD、恢复转化按钮，预览方式下从新 PDF 第一页开始。取消选择应保留原文件、MD、查看方式及按钮状态。选择或转换期间不得重复更换；损坏、加密文件应提示原因。两侧不再显示旧工具按钮。
 4. 点击“转化”，操作期间不能重复选择或提交。即使转换前处于占位图模式，成功后也自动切到预览并更新菜单蓝点，直接展示 MD、隐藏转化按钮，底部显示 `code=0`、成功提示和完整路径。失败显示错误码及处理建议，保留“重新转化”按钮；重试成功后同样隐藏。选择新文件后按钮恢复，取消选择保留原状态；切换查看方式、拖动分隔线及缩放窗口不能重新显示已有结果的转化按钮。
 5. 转换成功后底部显示完整 MD 路径；切到占位图模式后点击 MD 卡片，沿用系统文件管理器打开文件夹，文件夹内能看到真实 MD。不存在、为空或不可读取的结果应在跳转前明确报错，不能误报转换成功。
 6. 日志搜索 `HUIWEN_OUTPUT`：`import_success` 为导入落盘路径，`convert_start` 为输入/输出路径，`verified` 为磁盘验证及字节数，`convert_success` 为成功通知，`locate_start` 为点击时重新检查，`locate_requested` 为鸿蒙桥接已提交。系统跳转结果继续查看原有 `HUIWEN_QT_OPEN_REQUEST`、`HUIWEN_QT_OPEN_REQUEST_ACCEPTED` 或 `HUIWEN_QT_OPEN_FAILED`。
 7. 新导入生成 `convert/yyyyMMdd_HHmmss_文件名/input/原文件.pdf` 与 `output/原文件.md`；同秒同名只对任务目录追加编号，文件名保持一致。首页默认展示最近三条记录，长文件名中部省略且不挤压固定列；点击应复用原任务、载入已有结果，不弹选择器、不新建目录。检查成功恢复、PDF 打开、转换开始及结束后任务目录修改时间会更新；查询和失败不更新时间。分别验证全新 Qt 窗口、已有窗口、转换中拒绝替换、PDF 被删除、尚无 MD 的任务。同一任务重试路径不变，历史 `outputs/md/` 继续支持原有目录跳转。
-8. 从最近工作区进入，应直接预览 PDF 与已有非空 MD，转化按钮隐藏；MD 不存在或为空时显示等待提示并保留按钮。点击系统标题栏关闭应回到首页并结束工作区 Ability。连续重复进入和关闭，包含 MD 仍在加载时关闭，确认无残留白窗、整体退出或 CEF 失效；每次进入仍最大化，首页在工作区载入成功后结束。
+8. 从最近工作区进入，应直接预览 PDF 与已有非空 MD，转化按钮隐藏；MD 不存在或为空时显示等待提示并保留按钮。点击自绘标题栏关闭应先完成未保存修改确认，再按设置回到首页或退出应用。连续重复进入和关闭，包含 MD 仍在加载时关闭，确认无残留白窗、整体退出或 CEF 失效；转化首次全屏、预览和编辑首次最大化，首页在工作区载入成功后结束。
 
 Python 固定入口在 stdout 最后一行返回 `HUIWEN_CONVERT_RESULT {"code":0,"message":"转化成功，Markdown 文件已生成。","outputPath":"/沙箱/convert/时间戳_文件名/output/文件.md"}`。失败时 `code` 非零、`outputPath` 为空、进程退出码为 1；详细异常写入日志，界面展示中文原因和处理建议。C++ 独立保存完整结果行，日志尾部缓存仍限制为 4096 字节，结果不受日志截断影响。成功仍保留 `HUIWEN_CONVERT_OK` 标记，原 ArkTS 接口继续成功返回路径、失败拒绝 Promise。
 
