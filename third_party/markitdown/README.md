@@ -39,7 +39,7 @@ huiwen-pdf-to-md/
 │   ├── huiwen_converter.pyz        与鸿蒙使用同一个构建函数生成的业务源码
 │   ├── requirements.txt            与鸿蒙同源的 PDF Python 依赖锁定文件
 │   └── manifest.json               版本、主项目和转换核心提交、工作区状态
-└── licenses/HuiWenMCP-LICENSE      主项目封装许可；pyz 内保留 MarkItDown 许可
+└── licenses/HuiwenMCP-LICENSE      主项目封装许可；pyz 内保留 MarkItDown 许可
 ```
 
 本机打包不安装运行依赖、不构建 HAP：

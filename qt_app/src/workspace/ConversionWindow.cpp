@@ -370,9 +370,9 @@ void ConversionWindow::createDocumentViews(bool preview)
     source_->show();
     if (result_)
         result_->show();
-    setWindowTitle(mode_ == "edit"      ? QStringLiteral("汇文MCP · Markdown 编辑")
-                   : mode_ == "convert" ? QStringLiteral("汇文MCP")
-                                        : QStringLiteral("汇文MCP · %1 预览")
+    setWindowTitle(mode_ == "edit"      ? QStringLiteral("汇文 MCP · Markdown 编辑")
+                   : mode_ == "convert" ? QStringLiteral("汇文 MCP")
+                                        : QStringLiteral("汇文 MCP · %1 预览")
                                               .arg(kind_ == "word" ? "Word"
                                                    : kind_ == "md" ? "Markdown"
                                                                    : "PDF"));
@@ -777,7 +777,7 @@ void ConversionWindow::refreshScrollSync()
 void ConversionWindow::updateEditState()
 {
     if (!editor_) return;
-    setWindowTitle(QStringLiteral("汇文MCP · Markdown 编辑%1").arg(editDirty_ ? " *" : ""));
+    setWindowTitle(QStringLiteral("汇文 MCP · Markdown 编辑%1").arg(editDirty_ ? " *" : ""));
     if (saveAction_)
         saveAction_->setEnabled(!document_.inputPath.isEmpty() && editor_->isPreviewReady() &&
                                 !picking_ && !exporting_ && !switching_ && !closeApproved_ &&

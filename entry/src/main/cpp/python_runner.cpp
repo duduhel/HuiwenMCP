@@ -1,5 +1,5 @@
 /*
- * 汇文MCP 的 Python 进程启动器。
+ * 汇文 MCP 的 Python 进程启动器。
  * HNP 只提供解释器与依赖；转换代码从 HAP 内置 pyz 部署到缓存后执行。
  */
 #include "python_runner.h"
@@ -32,7 +32,7 @@ extern char **environ;
 
 namespace
 {
-constexpr char kBundleName[] = "cn.com.HuiWenMCP";
+constexpr char kBundleName[] = "cn.com.huiwenmcp";
 constexpr char kPackageDir[] = "huiwen_python.org/huiwen_python_1.0.0";
 constexpr char kResultPrefix[] = "HUIWEN_CONVERT_RESULT ";
 std::mutex bundleMutex;

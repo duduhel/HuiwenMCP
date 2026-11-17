@@ -1,14 +1,30 @@
-# 汇文MCP · HuiwenMCP for Harmony
+# 汇文 MCP · Huiwen MCP for Harmony
 
 [简体中文](README.md) · [English](README.en.md)
 
 **基于 Qt + OpenHarmony / HarmonyOS PC 的文档阅读、编辑与格式转换项目。**
 
-汇文MCP 将 PDF、Markdown 与 Word 文档集中到同一个桌面工作区：阅读原文、对照转换结果、编辑 Markdown，再从最近工作区继续处理文件。项目采用 ArkTS 首页与 Qt 工作区，集成 CEF 浏览器内核、PDFium 和 Python HNP，源码公开，供学习交流、教学参考与协作开发。
+汇文 MCP 将 PDF、Markdown 与 Word 文档集中到同一个桌面工作区：阅读原文、对照转换结果、编辑 Markdown，再从最近工作区继续处理文件。项目采用 ArkTS 首页与 Qt 工作区，集成 CEF 浏览器内核、PDFium 和 Python HNP，源码公开，供学习交流、教学参考与协作开发。
 
 [界面预览](#界面预览) · [核心功能](#核心功能) · [首次打开](#首次打开项目) · [开发与构建](#克隆后先初始化第三方源码) · [第三方维护规则](third_party/README.md) · [许可证](#许可证)
 
 ## 首次打开项目
+
+### 产品命名与应用身份
+
+| 用途 | 统一名称 |
+| --- | --- |
+| 中文产品名 / 英文产品名 | 汇文 MCP / Huiwen MCP |
+| 仓库及新克隆目录名 | `HuiwenMCP` |
+| 鸿蒙包名（bundleName） | `cn.com.huiwenmcp` |
+| 代码前缀 | 类名 `Huiwen`、变量 `huiwen`、常量 `HUIWEN` |
+| Python 包与文件前缀 | `huiwen_converter`、`huiwen_` |
+
+创建华为后台应用时使用上述包名，确认可用后再申请相应 Profile。旧包名 `cn.com.HuiWenMCP` 的调试 Profile 不能直接用于新包名，需重新生成；不要修改已签发 Profile 的内容。新旧包名代表不同应用身份，旧包沙箱数据不会自动迁移。本次仅统一源码命名，尚未进行新身份的构建或设备验证，也未改名本机已有工程目录；已有克隆继续使用自己的实际路径。
+
+官网域名单独选择，不要求与包名反向对应；本项目未声明拥有任何品牌域名。
+
+### 初始化本机配置
 
 **克隆后先初始化本机配置，再用 DevEco Studio 打开工程。** macOS 可双击项目根目录的 `初始化项目.command`，也可以在终端执行：
 
@@ -31,13 +47,13 @@ bash 初始化项目.command
 
 文档预览、编辑与转换入口集中展示，最近工作区保留文件和任务记录，便于继续上一次的阅读或整理。
 
-![汇文MCP 在 HarmonyOS PC 上的首页，包含文档预览、文档编辑、文档转化与最近工作区](docs/images/home-harmonyos-pc.png)
+![汇文 MCP 在 HarmonyOS PC 上的首页，包含文档预览、文档编辑、文档转化与最近工作区](docs/images/home-harmonyos-pc.png)
 
 ### PDF → Markdown 转换工作区
 
 左侧查看 PDF 原文，右侧对照 Markdown 结果；结合工作区文件、文档目录和双向同步滚动，在转换后逐段核对正文、表格与代码块。两侧宽度可通过中间分隔条调整。
 
-![汇文MCP 的 PDF 与 Markdown 双栏转换工作区，展示文件树、文档目录及右侧文档助手面板](docs/images/pdf-to-markdown-workspace.png)
+![汇文 MCP 的 PDF 与 Markdown 双栏转换工作区，展示文件树、文档目录及右侧文档助手面板](docs/images/pdf-to-markdown-workspace.png)
 
 截图由维护者提供，展示迁出文档助手前的运行版本。当前 `main` 不包含右侧文档助手及其开关；会话界面、模型配置和本地记录保留在 `feature/agent-sidebar` 分支，尚未接入真实模型后端。
 
@@ -118,7 +134,7 @@ Qt／CEF 继续使用原来的固定预编译 SDK／`.so`，不新增内核源�
 以下以当前仓库根目录为基准。`已有`表示工作区中存在，`生成`表示本机打包产物，`规划`表示后续阶段的目标目录或文件；规划项尚未创建。
 
 ```text
-HuiWenMCP/
+HuiwenMCP/
 ├── AppScope/                          [已有] 应用名称、图标和版本
 ├── entry/                             [已有] 鸿蒙 HAP 模块
 │   ├── src/main/
@@ -500,8 +516,8 @@ Python HNP 的运行时路径仍按下文配置，本次 Qt/CEF 自动准备不�
 首次克隆时连同固定版本的 MarkItDown 子模块一起下载：
 
 ```sh
-git clone --recurse-submodules https://github.com/duduhel/HuiwenMCP.git HuiWenMCP
-cd HuiWenMCP
+git clone --recurse-submodules https://github.com/duduhel/HuiwenMCP.git HuiwenMCP
+cd HuiwenMCP
 git submodule status third_party/markitdown/source
 ```
 

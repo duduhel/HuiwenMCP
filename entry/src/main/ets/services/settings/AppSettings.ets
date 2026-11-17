@@ -23,7 +23,7 @@ export interface AppSettings {
 }
 
 export const SETTINGS_CHANGED: string = 'huiwen.settings.changed';
-export const DEFAULT_SCREENSHOT_DOWNLOAD_DIR: string = '/storage/Users/currentUser/Images/gallery/HuiWenScreenShot';
+export const DEFAULT_SCREENSHOT_DOWNLOAD_DIR: string = '/storage/Users/currentUser/Images/gallery/huiwen_screenshots';
 
 export function defaultSettings(): AppSettings {
   return {

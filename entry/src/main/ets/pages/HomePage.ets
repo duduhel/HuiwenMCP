@@ -161,7 +161,7 @@ struct HomePage {
     try {
       const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
       await context.startAbility({
-        bundleName: 'cn.com.HuiWenMCP', abilityName: 'QtWorkspaceAbility',
+        bundleName: 'cn.com.huiwenmcp', abilityName: 'QtWorkspaceAbility',
         parameters: { huiwenTaskPath: taskPath, huiwenMode: mode, huiwenKind: kind }
       });
     } catch (error) {
@@ -491,7 +491,7 @@ struct HomePage {
           .draggable(false)
           .hitTestBehavior(HitTestMode.None)
         Column({ space: 20 }) {
-          Text('汇文MCP')
+          Text('汇文 MCP')
             .fontSize(48)
             .minFontSize(20)
             .maxFontSize(48)

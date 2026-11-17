@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1536" height="3072" viewBox="0 0 1536 3072">
-  <desc>汇文MCP首页背景：深石墨金属质感、左下至右上的黑色柔雾、左上输入文档与右下输出文档。上下留白供页面显示文字，圆角由容器裁切。</desc>
+  <desc>汇文 MCP首页背景：深石墨金属质感、左下至右上的黑色柔雾、左上输入文档与右下输出文档。上下留白供页面显示文字，圆角由容器裁切。</desc>
   <defs>
     <linearGradient id="silver" x1="0" y1="0" x2="1536" y2="3072" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#30363e"/>

@@ -10,7 +10,7 @@ export struct HomeAboutDialog {
           .width(64)
           .height(64)
           .draggable(false)
-        Text('汇文MCP')
+        Text('汇文 MCP')
           .fontSize(24)
           .fontWeight(FontWeight.Medium)
           .fontColor($r('app.color.home_text'))

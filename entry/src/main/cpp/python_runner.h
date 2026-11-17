@@ -1,5 +1,5 @@
 /*
- * 汇文MCP 的 Python 环境与业务包调用接口。
+ * 汇文 MCP 的 Python 环境与业务包调用接口。
  * 只执行 HNP 自检和应用内置的转换 pyz，不接收外部命令。
  */
 #ifndef HUIWEN_PYTHON_RUNNER_H

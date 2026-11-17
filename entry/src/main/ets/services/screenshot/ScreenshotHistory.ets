@@ -259,7 +259,7 @@ export async function downloadScreenshot(context: common.UIAbilityContext, path:
   } catch (error) {
     throw new Error(`下载目录不可用，请到应用设置的截图设置中浏览或修改下载目录以完成授权。${(error as Error).message}`);
   }
-  const target = `${root}/HuiWenScreenShot_${Date.now()}_${++imageSequence}.png`;
+  const target = `${root}/huiwen_screenshot_${Date.now()}_${++imageSequence}.png`;
   await copyVerified(path, target);
   return target;
 }
@@ -315,7 +315,7 @@ export async function changeScreenshotDirectory(context: common.UIAbilityContext
     if (uri === '') { return false; }
     if (!restore) {
       const selected = new fileUri.FileUri(uri).path.replace(/\/$/, '');
-      destination = selected.endsWith('/HuiWenScreenShot') ? selected : `${selected}/HuiWenScreenShot`;
+      destination = selected.endsWith('/huiwen_screenshots') ? selected : `${selected}/huiwen_screenshots`;
     }
     directoryUri(destination, uri);
     await fileShare.persistPermission([policy(uri)]);

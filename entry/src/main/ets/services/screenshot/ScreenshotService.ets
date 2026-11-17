@@ -208,7 +208,7 @@ export async function startScreenshot(hideApplication: boolean = false): Promise
       await minimizeBeforeCapture(windowStage.getMainWindowSync());
     }
     await nativeBridge.screenshotPrepareCapture();
-    await context.startAbility({ bundleName: 'cn.com.HuiWenMCP', abilityName: 'QtScreenshotAbility' }, {
+    await context.startAbility({ bundleName: 'cn.com.huiwenmcp', abilityName: 'QtScreenshotAbility' }, {
       windowMode: AbilityConstant.WindowMode.WINDOW_MODE_FULLSCREEN, withAnimation: false
     });
   } catch (error) {

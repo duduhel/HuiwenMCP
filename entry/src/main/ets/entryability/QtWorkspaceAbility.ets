@@ -308,7 +308,7 @@ export default class QtWorkspaceAbility extends UIAbility {
     }
     this.context.getApplicationContext().eventHub.on('huiwen.home.ready', this.homeReady);
     try {
-      await this.context.startAbility({ bundleName: 'cn.com.HuiWenMCP', abilityName: 'EntryAbility' });
+      await this.context.startAbility({ bundleName: 'cn.com.huiwenmcp', abilityName: 'EntryAbility' });
     } catch (error) {
       this.homeReady((error as Error).message);
     }

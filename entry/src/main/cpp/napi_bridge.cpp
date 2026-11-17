@@ -1,5 +1,5 @@
 /*
- * 汇文MCP 的鸿蒙 NAPI 桥接入口。
+ * 汇文 MCP 的鸿蒙 NAPI 桥接入口。
  * 提供 ping、Python 自检和异步 PDF 转换，连接 ArkTS 与私有 HNP 运行时。
  */
 #include "napi/native_api.h"

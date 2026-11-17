@@ -42,7 +42,7 @@ def build(version, output):
             ROOT / "packaging/ohos/requirements-pdf.txt", assets / "requirements.txt"
         )
         (stage / "licenses").mkdir()
-        shutil.copyfile(ROOT / "LICENSE", stage / "licenses/HuiWenMCP-LICENSE")
+        shutil.copyfile(ROOT / "LICENSE", stage / "licenses/HuiwenMCP-LICENSE")
         revision = lambda path: subprocess.check_output(
             ["git", "-C", str(path), "rev-parse", "HEAD"], text=True
         ).strip()

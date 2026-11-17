@@ -37,7 +37,7 @@ export async function chooseWorkspaceLocation(context: common.UIAbilityContext):
   await fileShare.activatePermission([directoryPolicy(uri)]);
   const selected = new fileUri.FileUri(uri).path;
   // 单独建立应用目录，避免将公共目录中的其他文件当作工作区清理。
-  const destination = selected.replace(/\/$/, '') + '/HuiWenMCP';
+  const destination = selected.replace(/\/$/, '') + '/HuiwenMCP';
   await migrateWorkspaceLocation(context, destination, uri);
   return true;
 }

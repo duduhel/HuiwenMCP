@@ -1,4 +1,4 @@
-# HuiwenMCP for Harmony
+# Huiwen MCP for Harmony
 
 [简体中文](README.md) · [English](README.en.md)
 
@@ -7,6 +7,10 @@ A document reading, Markdown editing and format conversion project for **OpenHar
 Read source documents, compare PDF-to-Markdown results side by side, edit Markdown, and resume work from recent tasks.
 
 ## First open in DevEco Studio
+
+The product name is **Huiwen MCP** (Chinese: **汇文 MCP**); the repository and new checkout directory use `HuiwenMCP`. The HarmonyOS bundle name is `cn.com.huiwenmcp`. Code prefixes use `Huiwen` for classes, `huiwen` for variables, `HUIWEN` for constants, and `huiwen_` for Python/file prefixes.
+
+Register the final bundle name in the Huawei console before requesting a matching Profile. Regenerate the debug Profile for the new bundle name; the old `cn.com.HuiWenMCP` Profile cannot be reused as-is. Do not edit an issued Profile. Existing sandbox data is not automatically migrated between bundle identities. This naming change has not been built or device-tested. Existing local checkout directories are not renamed; use your actual path. A future website domain does not have to match the bundle name, and no brand domain ownership is claimed here.
 
 **Initialize local configuration before opening the project.** On macOS, double-click `初始化项目.command` in the repository root, or run:
 

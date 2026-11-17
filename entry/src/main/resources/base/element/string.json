@@ -6,15 +6,15 @@
     },
     {
       "name": "module_desc",
-      "value": "汇文MCP 文档转换模块"
+      "value": "汇文 MCP 文档转换模块"
     },
     {
       "name": "EntryAbility_desc",
-      "value": "汇文MCP 文档转换应用"
+      "value": "汇文 MCP 文档转换应用"
     },
     {
       "name": "EntryAbility_label",
-      "value": "汇文MCP"
+      "value": "汇文 MCP"
     }
   ]
 }
