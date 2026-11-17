@@ -7,6 +7,7 @@
 #include <QDebug>
 
 #ifdef Q_OS_OPENHARMONY
+#include "platform/harmony/DisplayGeometry.h"
 #include "platform/harmony/harmony_screenshot.h"
 #include "platform/harmony/qt_bridge.h"
 // 汇文 CEF 预览的 Ctrl+V 读取鸿蒙系统剪贴板；Qt setPixmap 不保证图片同步过去。
@@ -446,44 +447,49 @@ class CaptureOverlay final : public QWidget
             return false;
 
         QPoint cursorPos;
+        QPointer<QScreen> screen;
+        QRect screenGeometry, availableArea;
 #ifdef Q_OS_OPENHARMONY
         int32_t displayId = -1;
         double displayX = 0, displayY = 0;
         const auto result = OH_Input_GetPointerLocation(&displayId, &displayX, &displayY);
         if (result == INPUT_APP_NOT_FOCUSED)
             return false;
-        int32_t originX = 0, originY = 0;
-        const auto positionResult =
-            result == INPUT_SUCCESS
-                ? OH_NativeDisplayManager_GetDisplayPosition(displayId, &originX, &originY)
-                : DISPLAY_MANAGER_ERROR_SYSTEM_ABNORMAL;
         qInfo().noquote() << (QStringLiteral("HUIWEN_SCREENSHOT: pointer ret=%1 display=%2 "
-                                             "local=%3,%4 origin=%5,%6 positionRet=%7")
+                                             "local=%3,%4")
                                   .arg(result)
                                   .arg(displayId)
                                   .arg(displayX)
-                                  .arg(displayY)
-                                  .arg(originX)
-                                  .arg(originY)
-                                  .arg(positionResult));
-        if (result != INPUT_SUCCESS || positionResult != DISPLAY_MANAGER_OK)
+                                  .arg(displayY));
+        if (result != INPUT_SUCCESS)
         {
             finish(false, QString(), QStringLiteral("无法获取系统鼠标所在屏幕，请重试。"));
             return true;
         }
         captureDisplayId_ = static_cast<quint32>(displayId);
-        // 系统返回屏内像素坐标，必须加上扩展屏原点后才能用于 Qt 虚拟桌面选屏。
-        cursorPos = QPoint(originX + qRound(displayX), originY + qRound(displayY));
+        QString error;
+        const auto display = huiwen::window::displayGeometry(displayId, error);
+        if (!display.screen)
+        {
+            qWarning() << "HUIWEN_SCREENSHOT: stage=select-screen" << error;
+            finish(false, {}, QStringLiteral("未能匹配截图屏幕：%1").arg(error));
+            return true;
+        }
+        screen = display.screen;
+        screenGeometry = display.geometry();
+        availableArea = display.availableRect;
+        cursorPos = display.toGlobal(QPointF(displayX, displayY));
 #else
         cursorPos = QCursor::pos();
-#endif
-        QPointer<QScreen> screen = QGuiApplication::screenAt(cursorPos);
+        screen = QGuiApplication::screenAt(cursorPos);
         if (!screen)
         {
             finish(false, QString(), QStringLiteral("未找到鼠标所在的截图屏幕。"));
             return true;
         }
-        const QRect screenGeometry = screen->geometry();
+        screenGeometry = screen->geometry();
+        availableArea = screen->availableGeometry();
+#endif
         qInfo().noquote()
             << (QStringLiteral(
                     "HUIWEN_SCREENSHOT: screen=%1 origin=%2,%3 size=%4x%5 cursor=%6,%7 screens=%8")
@@ -502,6 +508,11 @@ class CaptureOverlay final : public QWidget
             if (snapshot.displayId == static_cast<uint32_t>(displayId))
             {
                 screen_ = QPixmap::fromImage(ReadPreparedScreenshot(snapshot.pixels.get()));
+                if (screen_.size() != display.nativeRect.size())
+                {
+                    finish(false, {}, QStringLiteral("截图期间屏幕分辨率发生变化，请重试。"));
+                    return true;
+                }
 #else
             if (snapshot.first == screen)
             {
@@ -523,7 +534,7 @@ class CaptureOverlay final : public QWidget
             QPainter dimmer(&dimmedScreen_);
             dimmer.fillRect(dimmedScreen_.rect(), QColor(0, 0, 0, 110));
         }
-        availableRect_ = screen->availableGeometry();
+        availableRect_ = availableArea;
         amplifier_ = new CaptureAmplifier(screen_, this);
         windowHandle()->setScreen(screen.data());
         setGeometry(screenGeometry);
@@ -1501,6 +1512,24 @@ void BeginCapture(bool ignoreActiveWindow, ScreenCapture::FinishCallback callbac
     }
 
     QPointer<QWidget> activeWindow = QApplication::activeWindow();
+#ifdef Q_OS_OPENHARMONY
+    // 前台优先在鼠标屏起窗；后台暂时无焦点时，仅用有效底图屏幕创建准备窗。
+    int32_t pointerDisplay = -1;
+    double pointerX = 0, pointerY = 0;
+    const auto pointerResult = OH_Input_GetPointerLocation(&pointerDisplay, &pointerX, &pointerY);
+    qint64 initialDisplay = snapshots.front().displayId;
+    for (const auto &snapshot : snapshots)
+        if (pointerResult == INPUT_SUCCESS && snapshot.displayId == uint32_t(pointerDisplay))
+            initialDisplay = snapshot.displayId;
+    QString geometryError;
+    const auto initial = huiwen::window::displayGeometry(initialDisplay, geometryError);
+    if (!initial.screen)
+    {
+        qWarning() << "HUIWEN_SCREENSHOT: stage=prepare" << geometryError;
+        callback(false, {}, QStringLiteral("未能获取截图起窗位置：%1").arg(geometryError), false);
+        return;
+    }
+#endif
     if (ignoreActiveWindow && activeWindow)
         activeWindow->hide();
 
@@ -1509,7 +1538,15 @@ void BeginCapture(bool ignoreActiveWindow, ScreenCapture::FinishCallback callbac
         std::move(snapshots),
         activeWindow && !activeWindow->isVisible() ? activeWindow.data() : nullptr,
         std::move(callback), cacheDirectory);
+#ifdef Q_OS_OPENHARMONY
+    // 首次 show 之前定位，取得焦点后 startOnPointerScreen 再按最新鼠标屏幕确认。
+    overlay->setGeometry(initial.geometry());
+    qInfo() << "HUIWEN_SCREENSHOT: stage=prepare pointerDisplay=" << pointerDisplay
+            << "initialDisplay=" << initialDisplay << "rect=" << initial.geometry();
+    overlay->show();
+#else
     overlay->showFullScreen();
+#endif
     overlay->raise();
     overlay->activateWindow();
     if (overlay->windowHandle())
