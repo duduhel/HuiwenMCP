@@ -5,7 +5,7 @@ import { hilog } from '@kit.PerformanceAnalysisKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import qpa from 'libplugins_platforms_qopenharmony.so';
 import nativeBridge from 'libhuiwen_native.so';
-import { showScreenToast } from '../services/screenshot/ScreenToast';
+import { prepareScreenshotToast } from '../services/screenshot/ScreenToast';
 import { finishScreenshot } from '../services/screenshot/ScreenshotService';
 import { downloadScreenshot, rememberColor, rememberScreenshot } from '../services/screenshot/ScreenshotHistory';
 import { screenshotCacheRoot } from '../services/settings/AppSettings';
@@ -62,12 +62,12 @@ export default class QtScreenshotAbility extends UIAbility {
 
   private async colorCopied(format: string, value: string, color: string, displayId: number): Promise<void> {
     const context = this.context;
-    // 入库与全局提示独立完成，不让截图 Ability 的关闭取消应用级操作。
+    // Qt 已将截图窗口切换为两秒提示；这里只入库并关闭窗口输入，不依赖首页。
     rememberColor(context.getApplicationContext(), value, color).catch((error: Error) => {
       hilog.error(0xFF00, 'HuiwenScreenshot', 'HUIWEN_COLOR_HISTORY_FAILED: %{public}s', error.message);
     });
     try {
-      await showScreenToast(context, `${format} 色值已复制到剪贴板`, displayId);
+      await prepareScreenshotToast(context);
     } catch (failure) {
       const error = failure as BusinessError;
       hilog.warn(0xFF00, 'HuiwenScreenshot',
@@ -102,14 +102,19 @@ export default class QtScreenshotAbility extends UIAbility {
       hilog.error(0xFF00, 'HuiwenScreenshot', 'HUIWEN_SCREENSHOT_DOWNLOAD_FAILED: %{public}s', error);
     }
     if (this.destroyed) { return; }
-    try {
-      await showScreenToast(this.context, error || '截图已保存到设置的目录', displayId);
-    } catch (failure) {
-      hilog.warn(0xFF00, 'HuiwenScreenshot', 'HUIWEN_SCREEN_TOAST_FAILED: %{public}s', (failure as Error).message);
-    }
     // 用户可能在异步保存期间取消截图；旧宿主不能向下一次 Qt 会话发送回包。
     if (!this.destroyed) {
       this.session.completeScreenshotDownload(path, error);
+      try {
+        if (error === '') {
+          await prepareScreenshotToast(this.context);
+        } else {
+          const current = await window.getLastWindow(this.context);
+          current.getUIContext().getPromptAction().showToast({ message: error });
+        }
+      } catch (failure) {
+        hilog.warn(0xFF00, 'HuiwenScreenshot', 'HUIWEN_SCREEN_TOAST_FAILED: %{public}s', (failure as Error).message);
+      }
     }
   }
 

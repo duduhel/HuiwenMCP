@@ -30,6 +30,7 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QFontMetrics>
 #ifndef Q_OS_OPENHARMONY
 #include <QFileDialog>
 #endif
@@ -417,7 +418,8 @@ class CaptureOverlay final : public QWidget
                     downloadPending_ = false;
                     toolbar_->setEnabled(true);
                     if (error.isEmpty() && !path.isEmpty())
-                        finish(true, downloadPath_, QString(), true);
+                        showCompletionToast(QStringLiteral("截图已保存到设置的目录"), true,
+                                            downloadPath_, true);
                     else
                         qWarning() << "HUIWEN_SCREENSHOT_DOWNLOAD_FAILED:" << error;
                 });
@@ -563,6 +565,21 @@ class CaptureOverlay final : public QWidget
     {
         const qint64 started = resizing_ ? resizeTrace_.clock.nsecsElapsed() : 0;
         QPainter painter(this);
+        if (!toastMessage_.isEmpty())
+        {
+            painter.setCompositionMode(QPainter::CompositionMode_Source);
+            painter.fillRect(rect(), Qt::transparent);
+            painter.setRenderHint(QPainter::Antialiasing);
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(QColor(0, 0, 0, 245));
+            painter.drawRoundedRect(QRectF(rect()).adjusted(1, 1, -1, -1), 12 * toastScale_,
+                                    12 * toastScale_);
+            painter.setPen(Qt::white);
+            painter.drawText(
+                rect().adjusted(qRound(16 * toastScale_), 0, -qRound(16 * toastScale_), 0),
+                Qt::AlignCenter, toastMessage_);
+            return;
+        }
         if (screen_.isNull())
         {
             // 首帧尚无截图时清空缓冲，避免未初始化像素闪现。
@@ -933,13 +950,15 @@ class CaptureOverlay final : public QWidget
                 const QString color = amplifier_->colorText();
                 QApplication::clipboard()->setText(color);
 #ifdef Q_OS_OPENHARMONY
-                // 屏幕浮窗由 ArkTS 独立管理，关闭截图无需等待提示。
+                // 结束框选后复用普通截图窗口显示提示，不申请系统悬浮窗权限。
                 const QString format = color.startsWith('#') ? "HEX" : "RGB";
-                QtBridge::instance().notifyColorCopied(format, color, amplifier_->colorHex(),
-                                                       captureDisplayId_);
+                const QString colorHex = amplifier_->colorHex();
+                showCompletionToast(format + QStringLiteral(" 色值已复制到剪贴板"), false, {});
+                QtBridge::instance().notifyColorCopied(format, color, colorHex, captureDisplayId_);
+#else
+                dismiss(); // 只关闭截图，不保存图片或覆盖刚复制的文本。
 #endif
                 event->accept();
-                dismiss(); // 只关闭截图，不保存图片或覆盖刚复制的文本。
                 return;
             }
         }
@@ -1386,6 +1405,57 @@ class CaptureOverlay final : public QWidget
                      qRound(logical.width() * sx), qRound(logical.height() * sy));
     }
 
+    void showCompletionToast(const QString &message, bool ok, const QString &path,
+                             bool cached = false)
+    {
+        if (finished_ || !toastMessage_.isEmpty())
+            return;
+        const QRect screenRect = geometry();
+#ifdef Q_OS_OPENHARMONY
+        NativeDisplayManager_DisplayInfo *display = nullptr;
+        if (OH_NativeDisplayManager_CreateDisplayById(captureDisplayId_, &display) ==
+                DISPLAY_MANAGER_OK &&
+            display)
+            toastScale_ =
+                display->densityPixels > 0 ? display->densityPixels / devicePixelRatioF() : 1;
+        if (display)
+            OH_NativeDisplayManager_DestroyDisplay(display);
+#endif
+        toastMessage_ = message;
+        // 截图数据与编辑能力立即释放，只保留普通透明窗口绘制提示。
+        snapshots_.clear();
+        screen_ = QPixmap();
+        dimmedScreen_ = QPixmap();
+        marks_.clear();
+        selectionReady_ = draggingSelection_ = movingSelection_ = resizing_ = false;
+        toolbar_->hide();
+        amplifier_->hide();
+        textEditor_->clearFocus();
+        textEditor_->hide();
+        HarmonyImeInput::instance().stop();
+        setAttribute(Qt::WA_TransparentForMouseEvents);
+        setEnabled(false);
+        QFont toastFont = font();
+        toastFont.setPixelSize(qRound(16 * toastScale_));
+        setFont(toastFont);
+        const int toastWidth =
+            qMin(screenRect.width(), qMax(qRound(320 * toastScale_),
+                                          QFontMetrics(toastFont).horizontalAdvance(message) +
+                                              qRound(32 * toastScale_)));
+        const int toastHeight = qMin(screenRect.height(), qRound(48 * toastScale_));
+        // 退出全屏后将同一个窗口缩为提示条；不调用跨应用置顶接口。
+        showNormal();
+        setGeometry(
+            screenRect.x() + (screenRect.width() - toastWidth) / 2,
+            qMax(screenRect.y(), screenRect.bottom() + 1 - toastHeight - qRound(24 * toastScale_)),
+            toastWidth, toastHeight);
+        update();
+        qInfo() << "HUIWEN_SCREEN_TOAST: ordinary-window display=" << captureDisplayId_
+                << "rect=" << geometry();
+        // 计时器绑定窗口；窗口提前销毁时自动取消，避免访问已释放的截图对象。
+        QTimer::singleShot(2000, this, [this, ok, path, cached] { finish(ok, path, {}, cached); });
+    }
+
     void finish(bool ok, const QString &path, const QString &error, bool cached = false)
     {
         if (finished_)
@@ -1444,6 +1514,8 @@ class CaptureOverlay final : public QWidget
 
     QPixmap screen_;
     QPixmap dimmedScreen_;
+    QString toastMessage_;
+    qreal toastScale_ = 1;
     quint32 captureDisplayId_ = 0;
     ScreenSnapshots snapshots_;
     QPointer<QWidget> hiddenWindow_;

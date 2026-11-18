@@ -51,7 +51,7 @@ export interface WorkspaceHandlers {
   onOpenAboutDevice: () => Promise<void>;
 }
 
-// 截图 Ability 提供的业务处理器，在 ArkTS 线程完成历史入库、目录授权和全局提示。
+// 截图 Ability 提供的业务处理器，在 ArkTS 线程完成历史入库、目录授权和原生窗口输入控制。
 export interface ScreenshotHandlers {
   // 保存请求：path 为缓存图片，error 为 Qt 保存错误，displayId 用于定位提示屏幕。
   onDownload: (path: string, error: string, displayId: number) => Promise<void>;
