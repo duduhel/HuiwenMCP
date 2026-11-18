@@ -410,6 +410,16 @@ class CaptureOverlay final : public QWidget
         createToolbar();
         createTextEditor();
 #ifdef Q_OS_OPENHARMONY
+        connect(&QtBridge::instance(), &QtBridge::screenshotScreenPrepared, this,
+                [this](const QString &error)
+                {
+                    if (finished_ || !screenRequested_)
+                        return;
+                    if (!error.isEmpty())
+                        finish(false, {}, QStringLiteral("截图窗口定位失败：%1").arg(error));
+                    else
+                        screenPositioned_ = true;
+                });
         connect(&QtBridge::instance(), &QtBridge::screenshotDownloadCompleted, this,
                 [this](const QString &path, const QString &error)
                 {
@@ -441,8 +451,8 @@ class CaptureOverlay final : public QWidget
         if (timedOut)
         {
             qWarning().noquote() << (QStringLiteral(
-                "HUIWEN_SCREENSHOT: waiting for native pointer/focus timed out"));
-            finish(false, QString(), QStringLiteral("截图窗口未取得系统焦点，请重试。"));
+                "HUIWEN_SCREENSHOT: waiting for native screen/focus timed out"));
+            finish(false, QString(), QStringLiteral("截图窗口未能就绪，请重试。"));
             return true;
         }
         if (!windowHandle() || !windowHandle()->isExposed())
@@ -452,25 +462,34 @@ class CaptureOverlay final : public QWidget
         QPointer<QScreen> screen;
         QRect screenGeometry, availableArea;
 #ifdef Q_OS_OPENHARMONY
-        int32_t displayId = -1;
-        double displayX = 0, displayY = 0;
-        const auto result = OH_Input_GetPointerLocation(&displayId, &displayX, &displayY);
-        if (result == INPUT_APP_NOT_FOCUSED)
-            return false;
-        qInfo().noquote() << (QStringLiteral("HUIWEN_SCREENSHOT: pointer ret=%1 display=%2 "
-                                             "local=%3,%4")
-                                  .arg(result)
-                                  .arg(displayId)
-                                  .arg(displayX)
-                                  .arg(displayY));
-        if (result != INPUT_SUCCESS)
+        if (!screenRequested_)
         {
-            finish(false, QString(), QStringLiteral("无法获取系统鼠标所在屏幕，请重试。"));
-            return true;
+            int32_t displayId = -1;
+            double displayX = 0, displayY = 0;
+            const auto result = OH_Input_GetPointerLocation(&displayId, &displayX, &displayY);
+            if (result == INPUT_APP_NOT_FOCUSED)
+                return false;
+            qInfo() << "HUIWEN_SCREENSHOT: pointer ret=" << result << "display=" << displayId
+                    << "local=" << QPointF(displayX, displayY);
+            if (result != INPUT_SUCCESS || displayId < 0)
+            {
+                finish(false, {}, QStringLiteral("无法获取系统鼠标所在屏幕，请重试。"));
+                return true;
+            }
+            captureDisplayId_ = static_cast<quint32>(displayId);
+            capturePointer_ = QPointF(displayX, displayY);
+            screenRequested_ = true;
+            if (!QtBridge::instance().requestScreenshotScreen(captureDisplayId_))
+            {
+                finish(false, {}, QStringLiteral("截图窗口定位请求发送失败，请重试。"));
+                return true;
+            }
+            return false;
         }
-        captureDisplayId_ = static_cast<quint32>(displayId);
+        if (!screenPositioned_)
+            return false;
         QString error;
-        const auto display = huiwen::window::displayGeometry(displayId, error);
+        const auto display = huiwen::window::displayGeometry(captureDisplayId_, error);
         if (!display.screen)
         {
             qWarning() << "HUIWEN_SCREENSHOT: stage=select-screen" << error;
@@ -478,9 +497,14 @@ class CaptureOverlay final : public QWidget
             return true;
         }
         screen = display.screen;
-        screenGeometry = display.geometry();
-        availableArea = display.availableRect;
-        cursorPos = display.toGlobal(QPointF(displayX, displayY));
+        // 回包先于 QPA 几何事件时继续等待；不再从 Qt 发起第二次移屏或全屏。
+        if (windowHandle()->screen() != screen.data() || size() != display.geometry().size())
+            return false;
+        screenGeometry = geometry();
+        // 使用窗口实际的 Qt 全局原点，兼容 QPA 与系统虚拟桌面原点的差异。
+        const QPoint offset = screenGeometry.topLeft() - display.geometry().topLeft();
+        availableArea = display.availableRect.translated(offset);
+        cursorPos = display.toGlobal(capturePointer_) + offset;
 #else
         cursorPos = QCursor::pos();
         screen = QGuiApplication::screenAt(cursorPos);
@@ -507,7 +531,7 @@ class CaptureOverlay final : public QWidget
         for (const auto &snapshot : snapshots_)
         {
 #ifdef Q_OS_OPENHARMONY
-            if (snapshot.displayId == static_cast<uint32_t>(displayId))
+            if (snapshot.displayId == captureDisplayId_)
             {
                 screen_ = QPixmap::fromImage(ReadPreparedScreenshot(snapshot.pixels.get()));
                 if (screen_.size() != display.nativeRect.size())
@@ -538,9 +562,11 @@ class CaptureOverlay final : public QWidget
         }
         availableRect_ = availableArea;
         amplifier_ = new CaptureAmplifier(screen_, this);
+#ifndef Q_OS_OPENHARMONY
         windowHandle()->setScreen(screen.data());
         setGeometry(screenGeometry);
         showFullScreen();
+#endif
         raise();
         activateWindow();
         // 保留截图文字输入所需的系统焦点与 Qt 焦点。
@@ -1517,6 +1543,11 @@ class CaptureOverlay final : public QWidget
     QString toastMessage_;
     qreal toastScale_ = 1;
     quint32 captureDisplayId_ = 0;
+#ifdef Q_OS_OPENHARMONY
+    QPointF capturePointer_;
+    bool screenRequested_ = false;
+    bool screenPositioned_ = false;
+#endif
     ScreenSnapshots snapshots_;
     QPointer<QWidget> hiddenWindow_;
     ScreenCapture::FinishCallback callback_;
@@ -1611,10 +1642,12 @@ void BeginCapture(bool ignoreActiveWindow, ScreenCapture::FinishCallback callbac
         activeWindow && !activeWindow->isVisible() ? activeWindow.data() : nullptr,
         std::move(callback), cacheDirectory);
 #ifdef Q_OS_OPENHARMONY
-    // 首次 show 之前定位，取得焦点后 startOnPointerScreen 再按最新鼠标屏幕确认。
-    overlay->setGeometry(initial.geometry());
+    // 先用小尺寸透明窗取得焦点，避免准备阶段就请求全屏尺寸；移屏由 ArkTS 顺序完成。
+    QRect prepareGeometry(QPoint(), initial.geometry().size().boundedTo(QSize(640, 480)));
+    prepareGeometry.moveCenter(initial.geometry().center());
+    overlay->setGeometry(prepareGeometry);
     qInfo() << "HUIWEN_SCREENSHOT: stage=prepare pointerDisplay=" << pointerDisplay
-            << "initialDisplay=" << initialDisplay << "rect=" << initial.geometry();
+            << "initialDisplay=" << initialDisplay << "rect=" << prepareGeometry;
     overlay->show();
 #else
     overlay->showFullScreen();

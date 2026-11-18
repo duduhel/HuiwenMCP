@@ -62,6 +62,8 @@ export class QtSessionBridge {
     const screenshot = this.screenshot;
     if (screenshot !== undefined) {
       switch (event.action) {
+        case 'prepareScreenshotScreen':
+          await screenshot.onPrepareScreen(event.displayId ?? 0); return;
         case 'downloadScreenshot':
           await screenshot.onDownload(event.path ?? '', event.error ?? '', event.displayId ?? 0); return;
         case 'colorCopied':
@@ -106,6 +108,11 @@ export class QtSessionBridge {
   closeQtWorkspace(): void { this.deliver({ action: 'close' }); }
   // ArkTS → Qt：返回首页失败时撤销关闭，恢复编辑器的可操作状态。
   cancelWorkspaceClose(): void { this.deliver({ action: 'closeAborted' }); }
+
+  // ArkTS → Qt：原生移屏及全屏已完成；error 非空时结束本次截图。
+  completeScreenshotScreen(error: string): void {
+    this.deliver({ action: 'prepareScreenshotScreen', error: error });
+  }
 
   // ArkTS → Qt：返回保存后的目标 path 与 error；成功后 Qt 才结束截图选区。
   completeScreenshotDownload(path: string, error: string): void {

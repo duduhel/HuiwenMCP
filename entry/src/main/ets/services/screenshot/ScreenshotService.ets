@@ -1,5 +1,5 @@
 // 截图入口与全局快捷键集中管理，避免把监听器绑定到会反复销毁的首页组件。
-import { AbilityConstant, abilityAccessCtrl, common, Permissions } from '@kit.AbilityKit';
+import { abilityAccessCtrl, common, Permissions } from '@kit.AbilityKit';
 import { inputConsumer, KeyCode } from '@kit.InputKit';
 import { window } from '@kit.ArkUI';
 import { hilog } from '@kit.PerformanceAnalysisKit';
@@ -209,7 +209,8 @@ export async function startScreenshot(hideApplication: boolean = false): Promise
     }
     await nativeBridge.screenshotPrepareCapture();
     await context.startAbility({ bundleName: 'cn.com.huiwenmcp', abilityName: 'QtScreenshotAbility' }, {
-      windowMode: AbilityConstant.WindowMode.WINDOW_MODE_FULLSCREEN, withAnimation: false
+      // 先让透明准备窗取得焦点；确认鼠标屏幕后再移屏并全屏，避免全屏中 resize。
+      withAnimation: false
     });
   } catch (error) {
     nativeBridge.screenshotReleaseCapture();

@@ -40,14 +40,21 @@ export default class QtScreenshotAbility extends UIAbility {
     }
   }
 
-  private startScreenshot(windowStage: window.WindowStage): void {
+  private async startScreenshot(windowStage: window.WindowStage): Promise<void> {
     try {
       // 此时 UIContent 已创建，可以安全设置原生窗口背景和装饰。
       const mainWindow = windowStage.getMainWindowSync();
       mainWindow.setWindowBackgroundColor('#00000000');
       mainWindow.setWindowDecorVisible(false);
+      // 系统可能保留上次全屏状态；在 Qt 准备窗创建前先恢复普通窗口。
+      if (mainWindow.getWindowStatus() !== window.WindowStatusType.FLOATING) {
+        await mainWindow.recover();
+      }
+      if (this.destroyed) { return; }
       // 不注册 CEF 代理；业务处理不再解析 JSON，会话归属由桥接层负责。
       this.session.attachScreenshot(screenshotCacheRoot(this.context), {
+        onPrepareScreen: (displayId: number): Promise<void> =>
+          this.prepareScreenshotScreen(windowStage, displayId),
         onDownload: (path: string, error: string, displayId: number): Promise<void> =>
           this.download(path, error, displayId),
         onColorCopied: (format: string, value: string, color: string, displayId: number): Promise<void> =>
@@ -58,6 +65,33 @@ export default class QtScreenshotAbility extends UIAbility {
     } catch (error) {
       this.failStart(error as Error);
     }
+  }
+
+  private async prepareScreenshotScreen(windowStage: window.WindowStage, displayId: number): Promise<void> {
+    let error = '';
+    try {
+      const current = windowStage.getMainWindowSync();
+      // moveWindowToGlobal 只接受普通窗口；逐步等待原生操作，Qt 不再并发改尺寸和状态。
+      if (current.getWindowStatus() !== window.WindowStatusType.FLOATING) {
+        await current.recover();
+      }
+      if (this.destroyed) { return; }
+      await current.moveWindowToGlobal(0, 0, { displayId: displayId });
+      if (this.destroyed) { return; }
+      await current.maximize(window.MaximizePresentation.ENTER_IMMERSIVE_DISABLE_TITLE_AND_DOCK_HOVER);
+      if (this.destroyed) { return; }
+      const properties = current.getWindowProperties();
+      if (properties.displayId !== displayId) {
+        throw new Error(`截图屏幕不匹配：请求 ${displayId}，实际 ${properties.displayId}`);
+      }
+      hilog.info(0xFF00, 'HuiwenScreenshot',
+        'HUIWEN_SCREENSHOT_SCREEN_READY: display=%{public}d size=%{public}dx%{public}d',
+        displayId, properties.windowRect.width, properties.windowRect.height);
+    } catch (failure) {
+      error = (failure as Error).message;
+      hilog.error(0xFF00, 'HuiwenScreenshot', 'HUIWEN_SCREENSHOT_SCREEN_FAILED: %{public}s', error);
+    }
+    if (!this.destroyed) { this.session.completeScreenshotScreen(error); }
   }
 
   private async colorCopied(format: string, value: string, color: string, displayId: number): Promise<void> {

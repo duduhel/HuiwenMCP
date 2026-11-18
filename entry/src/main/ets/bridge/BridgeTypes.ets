@@ -53,6 +53,8 @@ export interface WorkspaceHandlers {
 
 // 截图 Ability 提供的业务处理器，在 ArkTS 线程完成历史入库、目录授权和原生窗口输入控制。
 export interface ScreenshotHandlers {
+  // Qt 已取得鼠标屏幕：原生窗口顺序完成移屏和全屏，再回报 Qt 绘制底图。
+  onPrepareScreen: (displayId: number) => Promise<void>;
   // 保存请求：path 为缓存图片，error 为 Qt 保存错误，displayId 用于定位提示屏幕。
   onDownload: (path: string, error: string, displayId: number) => Promise<void>;
   // 颜色已复制：format 为 HEX／RGB，value 为剪贴板文本，color 为历史色块的 HEX 值。

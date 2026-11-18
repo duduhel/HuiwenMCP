@@ -38,6 +38,8 @@ class QtBridge : public QObject
     bool notifyWorkspaceClosed();
     // Qt → ArkTS：报告截图结束、结果路径和错误；cached 表示结果已缓存在截图目录。
     bool notifyScreenshotFinished(bool ok, const QString &path, const QString &error, bool cached);
+    // Qt → ArkTS：让截图宿主移到鼠标所在 displayId 并全屏，完成后才允许 Qt 绘制。
+    bool requestScreenshotScreen(quint64 displayId);
     // Qt → ArkTS：把缓存 path 保存到授权目录；error 为预先保存失败原因，displayId 用于屏幕提示。
     bool requestScreenshotDownload(const QString &path, const QString &error, quint64 displayId);
     // Qt → ArkTS：颜色已复制；format／value 为格式及文本，color 为 HEX 色块，displayId 用于提示。
@@ -62,6 +64,8 @@ class QtBridge : public QObject
     void outputExportCompleted(const QString &path, const QString &error);
     // ArkTS → Qt：下载完成回包，path 为目标文件，error 为空时才按成功处理。
     void screenshotDownloadCompleted(const QString &path, const QString &error);
+    // ArkTS → Qt：原生移屏及全屏已完成；error 非空表示本次起窗失败。
+    void screenshotScreenPrepared(const QString &error);
 
   private:
     // Qt → TSFN 的唯一发送入口；所有 bool 方法只返回是否入队，不代表业务已成功。

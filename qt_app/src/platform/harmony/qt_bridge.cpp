@@ -194,7 +194,7 @@ napi_value SessionDeliverResult(napi_env env, napi_callback_info info)
     if (error.error != QJsonParseError::NoError || !document.isObject() ||
         !(documentResult || action == "open" || action == "openDirectory" ||
           action == "closeAborted" || action == "downloadScreenshot" || action == "confirmClose" ||
-          action == "close" || action == "exportOutput") ||
+          action == "close" || action == "exportOutput" || action == "prepareScreenshotScreen") ||
         (result.contains("error") && !result.value("error").isString()) ||
         (documentResult && !ValidDocumentResult(result)) ||
         ((action == "downloadScreenshot" || action == "exportOutput") &&
@@ -218,6 +218,8 @@ napi_value SessionDeliverResult(napi_env env, napi_callback_info info)
                         emit bridge.closeRequested();
                     else if (action == "closeAborted")
                         emit bridge.workspaceCloseCancelled();
+                    else if (action == "prepareScreenshotScreen")
+                        emit bridge.screenshotScreenPrepared(result.value("error").toString());
                     else if (action == "downloadScreenshot")
                         emit bridge.screenshotDownloadCompleted(result.value("path").toString(),
                                                                 result.value("error").toString());
@@ -319,6 +321,10 @@ bool QtBridge::notifyScreenshotFinished(bool ok, const QString &path, const QStr
 {
     return post("screenshotFinished",
                 {{"ok", ok}, {"path", path}, {"error", error}, {"cached", cached}});
+}
+bool QtBridge::requestScreenshotScreen(quint64 displayId)
+{
+    return post("prepareScreenshotScreen", {{"displayId", static_cast<double>(displayId)}});
 }
 bool QtBridge::requestScreenshotDownload(const QString &path, const QString &error,
                                          quint64 displayId)
