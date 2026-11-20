@@ -8,14 +8,8 @@ import { hilog } from '@kit.PerformanceAnalysisKit';
 export struct HomeTitleBar {
   @State private barHeight: number = 37;
   @State private buttonsWidth: number = 160;
-  @State private expanded: boolean = false;
   private mainWindow: window.Window | undefined = undefined;
   private active: boolean = false;
-  private onStatusChanged = (status: window.WindowStatusType): void => {
-    // 全屏与最大化共用品牌标识，普通窗口恢复应用图标。
-    this.expanded = status === window.WindowStatusType.FULL_SCREEN ||
-      status === window.WindowStatusType.MAXIMIZE;
-  };
   private onButtonsChanged = (rect: window.TitleButtonRect): void => {
     // TitleButtonRect 使用 vp，right 是相对于窗口右上角的边界距离。
     this.buttonsWidth = Math.max(0, rect.right) + rect.width;
@@ -32,8 +26,6 @@ export struct HomeTitleBar {
         return;
       }
       this.mainWindow = mainWindow;
-      mainWindow.on('windowStatusChange', this.onStatusChanged);
-      this.onStatusChanged(mainWindow.getWindowStatus());
       this.onButtonsChanged(mainWindow.getTitleButtonRect());
       mainWindow.on('windowTitleButtonRectChange', this.onButtonsChanged);
     }).catch((error: Error) => this.reportError(error));
@@ -42,7 +34,6 @@ export struct HomeTitleBar {
   aboutToDisappear(): void {
     this.active = false;
     try {
-      this.mainWindow?.off('windowStatusChange', this.onStatusChanged);
       this.mainWindow?.off('windowTitleButtonRectChange', this.onButtonsChanged);
     } catch (error) {
       this.reportError(error as Error);
@@ -92,39 +83,23 @@ export struct HomeTitleBar {
 
   build() {
     Row() {
-      if (this.expanded) {
-        // 独立点击区不参与右侧标题文字的拖动及双击手势。
-        Button({ type: ButtonType.Normal }) {
-          // 使用透明 SVG 原色，不随深色模式改色。
-          Image($r('app.media.harmonyos_logo'))
-            .width(108)
-            .height(20)
-            .objectFit(ImageFit.Contain)
-            .draggable(false)
-        }
-        // 两侧各扩展 8vp，并回收外边距，保持字标和后续文字的原位置。
-        .width(124)
-        .height('100%')
-        .margin({ left: 8 })
-        .padding({ left: 8, right: 8 })
-        .borderRadius(8)
-        .backgroundColor(Color.Transparent)
-        .accessibilityText('打开关于本机')
-        .onClick(() => this.openAboutDevice())
+      // 应用图标始终显示；独立点击区不参与标题文字的拖动及双击手势。
+      Button({ type: ButtonType.Normal }) {
+        Image($r('app.media.app_icon'))
+          .width(20)
+          .height(20)
+          .objectFit(ImageFit.Contain)
+          .draggable(false)
       }
+      .width(36)
+      .height('100%')
+      .margin({ left: 8 })
+      .padding({ left: 8, right: 8 })
+      .borderRadius(8)
+      .backgroundColor(Color.Transparent)
+      .accessibilityText('打开关于本机')
+      .onClick(() => this.openAboutDevice())
       Row({ space: 8 }) {
-        if (this.expanded) {
-          Text('X')
-            .fontSize(16)
-            .fontColor($r('app.color.home_text'))
-            .margin({ left: 8, right: 8 })
-        } else {
-          Image($r('app.media.app_icon'))
-            .width(20)
-            .height(20)
-            .objectFit(ImageFit.Contain)
-            .draggable(false)
-        }
         Text($r('app.string.app_name'))
           .fontSize(16)
           .fontWeight(FontWeight.Bold)
@@ -135,7 +110,7 @@ export struct HomeTitleBar {
       }
       .layoutWeight(1)
       .height('100%')
-      .padding({ left: this.expanded ? 0 : 16, right: 12 })
+      .padding({ right: 12 })
       .onTouch((event: TouchEvent) => {
         // Move 时再交给系统拖动，避免 Down 就接管导致双击手势失效。
         if (event.type === TouchType.Move) {

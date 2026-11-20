@@ -30,7 +30,7 @@ class WorkspaceTitleBar : public QWidget
     QWidget *window_;
     QLabel *title_;
     TitleBarActions *titleActions_;
-    QToolButton *harmonyLogo_;
+    QToolButton *appIcon_;
     QToolButton *maximize_ = nullptr;
     QToolButton *minimize_ = nullptr;
     QToolButton *close_ = nullptr;

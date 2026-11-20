@@ -28,15 +28,15 @@ WorkspaceTitleBar::WorkspaceTitleBar(const QString &mode, QWidget *window)
     setAttribute(Qt::WA_StyledBackground);
     auto *layout = new QHBoxLayout(this);
     layout->setSpacing(0);
-    harmonyLogo_ = new QToolButton(this);
-    harmonyLogo_->setObjectName(QStringLiteral("harmonyLogo"));
-    harmonyLogo_->setIcon(QIcon(QStringLiteral(":/branding/harmonyos_logo.png")));
-    harmonyLogo_->setAccessibleName(QStringLiteral("打开关于本机"));
-    harmonyLogo_->setCursor(Qt::PointingHandCursor);
-    layout->addWidget(harmonyLogo_);
-    connect(harmonyLogo_, &QToolButton::clicked, this, &WorkspaceTitleBar::aboutDeviceRequested);
+    appIcon_ = new QToolButton(this);
+    appIcon_->setObjectName(QStringLiteral("appIcon"));
+    appIcon_->setIcon(QIcon(QStringLiteral(":/branding/app_icon.png")));
+    appIcon_->setAccessibleName(QStringLiteral("打开关于本机"));
+    appIcon_->setCursor(Qt::PointingHandCursor);
+    layout->addWidget(appIcon_);
+    connect(appIcon_, &QToolButton::clicked, this, &WorkspaceTitleBar::aboutDeviceRequested);
     title_->setMinimumWidth(0);
-    title_->setTextFormat(Qt::RichText);
+    title_->setTextFormat(Qt::PlainText);
     title_->setTextInteractionFlags(Qt::NoTextInteraction);
     layout->addWidget(title_);
     layout->addWidget(titleActions_);
@@ -119,17 +119,17 @@ void WorkspaceTitleBar::updateMetrics()
     setFixedHeight(barHeight);
     // 保留系统缩放热区的避让，同时让按钮上下边距相等。
     // 三键仍按原尺寸垂直居中；菜单使用标题栏全高，避免 26px 文字被内边距裁切。
-    layout()->setContentsMargins(0, 0, vp(16), 0);
+    layout()->setContentsMargins(vp(8), 0, vp(16), 0);
     setStyleSheet(loadStyle(QStringLiteral(":/styles/window/WorkspaceTitleBar.qss"))
-                      .arg(vp(window_->isMaximized() || window_->isFullScreen() ? 8 : 16))
+                      .arg(0)
                       .arg(qRound(16 * fontScale))
                       .arg(leftPadding)
                       .arg(rightPadding)
                       .arg(vp(8))
-                      .arg(vp(16)));
-    // 对齐首页：字标左侧 16vp，右侧 8vp，后续标题仍是独立拖动区。
-    harmonyLogo_->setFixedSize(vp(132), buttonHeight);
-    harmonyLogo_->setIconSize(QSize(vp(108), vp(20)));
+                      .arg(vp(8)));
+    // 对齐首页：应用图标 20vp，两侧各留 8vp，标题文字独立承载拖动。
+    appIcon_->setFixedSize(vp(36), buttonHeight);
+    appIcon_->setIconSize(QSize(vp(20), vp(20)));
     const QSize iconSize(vp(20), vp(20));
     for (auto *button : {maximize_, minimize_, close_})
     {
@@ -268,14 +268,8 @@ void WorkspaceTitleBar::hideMaximizeMenu()
 void WorkspaceTitleBar::updateWindowState()
 {
     const bool restore = window_->isMaximized() || window_->isFullScreen();
-    // 鸿蒙字标独立点击；标题文字继续承载拖动与双击。
-    harmonyLogo_->setVisible(restore);
-    const QString branding =
-        restore ? QStringLiteral("×&nbsp; ")
-                : QStringLiteral("<img src=\":/branding/app_icon.png\" width=\"%1\" height=\"%1\" "
-                                 "style=\"vertical-align: middle;\"> &nbsp;")
-                      .arg(qRound(20 * scale_));
-    title_->setText(branding + window_->windowTitle().toHtmlEscaped());
+    // 应用图标始终独立显示并支持点击，窗口状态只影响三键图标。
+    title_->setText(window_->windowTitle());
     title_->setAccessibleName(window_->windowTitle());
     const QString text = restore ? QStringLiteral("还原") : QStringLiteral("最大化");
     maximize_->setIcon(QIcon(restore ? QStringLiteral(":/window-controls/recover.svg")
