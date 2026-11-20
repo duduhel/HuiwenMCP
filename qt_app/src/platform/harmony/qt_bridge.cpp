@@ -194,7 +194,9 @@ napi_value SessionDeliverResult(napi_env env, napi_callback_info info)
     if (error.error != QJsonParseError::NoError || !document.isObject() ||
         !(documentResult || action == "open" || action == "openDirectory" ||
           action == "closeAborted" || action == "downloadScreenshot" || action == "confirmClose" ||
-          action == "close" || action == "exportOutput" || action == "prepareScreenshotScreen") ||
+          action == "close" || action == "exportOutput" || action == "prepareScreenshotScreen" ||
+          action == "titleBarContrast") ||
+        (action == "titleBarContrast" && !result.value("lightForeground").isBool()) ||
         (result.contains("error") && !result.value("error").isString()) ||
         (documentResult && !ValidDocumentResult(result)) ||
         ((action == "downloadScreenshot" || action == "exportOutput") &&
@@ -212,7 +214,10 @@ napi_value SessionDeliverResult(napi_env env, napi_callback_info info)
                     if (id != QtBridge::workspaceId())
                         return;
                     auto &bridge = QtBridge::instance();
-                    if (action == "confirmClose")
+                    if (action == "titleBarContrast")
+                        emit bridge.titleBarContrastChanged(
+                            result.value("lightForeground").toBool());
+                    else if (action == "confirmClose")
                         emit bridge.closeApprovalRequested();
                     else if (action == "close")
                         emit bridge.closeRequested();

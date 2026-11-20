@@ -13,6 +13,7 @@ import { ensureWorkspaceAccess } from '../services/settings/WorkspaceStorage';
 import { exportWorkspaceOutput } from '../services/WorkspaceExport';
 import { QtSessionBridge } from '../bridge/QtSessionBridge';
 import { applyHomeWindowColors } from '../utils/HomeAppearance';
+import { TitleBarContrast } from '../services/window/TitleBarContrast';
 
 export default class QtWorkspaceAbility extends UIAbility {
   // QPA 读取这两个字段，加载应用共享库并调用其中的 main()。
@@ -30,6 +31,7 @@ export default class QtWorkspaceAbility extends UIAbility {
   private exitOnClose: boolean = false;
   private session: QtSessionBridge = new QtSessionBridge();
   private cefProxy: CefWorkspaceProxy | undefined = undefined;
+  private titleContrast: TitleBarContrast | undefined = undefined;
   // 首页确认显示后才让 Qt 释放浏览器；只消费本次关闭的一次回执。
   private homeReady = (error: string = ''): void => {
     this.context.getApplicationContext().eventHub.off('huiwen.home.ready', this.homeReady);
@@ -122,6 +124,10 @@ export default class QtWorkspaceAbility extends UIAbility {
       const current = await window.getLastWindow(this.context);
       if (!this.destroyed && !this.closing) {
         this.configureWindowTitleBar(current);
+        this.titleContrast?.stop();
+        this.titleContrast = new TitleBarContrast(this.context, current, (white: boolean): void => {
+          if (!this.destroyed && !this.closing) { this.session.updateTitleBarContrast(white); }
+        });
       }
     } catch (error) {
       hilog.warn(0xFF00, 'QtWorkspace', '获取工作区窗口失败：%{public}s',
@@ -339,6 +345,8 @@ export default class QtWorkspaceAbility extends UIAbility {
   }
 
   onDestroy(): void {
+    this.titleContrast?.stop();
+    this.titleContrast = undefined;
     AppStorage.setOrCreate('documentWorkspaceActive', false);
     this.destroyed = true;
     this.context.getApplicationContext().eventHub.off('huiwen.home.ready', this.homeReady);

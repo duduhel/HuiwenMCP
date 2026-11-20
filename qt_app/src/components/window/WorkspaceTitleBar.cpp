@@ -9,6 +9,8 @@
 #include <QIcon>
 #include <QLabel>
 #include <QMenu>
+#include <QPainter>
+#include <QPixmap>
 #include <QScreen>
 #include <QStyle>
 #include <QToolButton>
@@ -16,6 +18,7 @@
 #include <QVariant>
 #include <QWidgetAction>
 #ifdef Q_OS_OPENHARMONY
+#include "platform/harmony/qt_bridge.h"
 #include <multimodalinput/oh_input_manager.h>
 #include <window_manager/oh_display_manager.h>
 #endif
@@ -67,7 +70,34 @@ WorkspaceTitleBar::WorkspaceTitleBar(const QString &mode, QWidget *window)
     maximizeMenuDelay_.setInterval(400);
     connect(&maximizeMenuDelay_, &QTimer::timeout, this, &WorkspaceTitleBar::showMaximizeMenu);
     window_->installEventFilter(this);
+#ifdef Q_OS_OPENHARMONY
+    connect(&QtBridge::instance(), &QtBridge::titleBarContrastChanged, this,
+            &WorkspaceTitleBar::setLightForeground);
+#endif
     updateMetrics();
+}
+
+void WorkspaceTitleBar::setLightForeground(bool light)
+{
+    if (lightForeground_ == light)
+        return;
+    lightForeground_ = light;
+    setProperty("lightForeground", light);
+    titleActions_->setProperty("lightForeground", light);
+    // 只重设前景样式，不重算窗口布局或关闭正在使用的菜单。
+    for (QWidget *widget : {static_cast<QWidget *>(title_), static_cast<QWidget *>(titleActions_)})
+    {
+        widget->style()->unpolish(widget);
+        widget->style()->polish(widget);
+        widget->update();
+    }
+    for (auto *button : titleActions_->findChildren<QToolButton *>())
+    {
+        button->style()->unpolish(button);
+        button->style()->polish(button);
+        button->update();
+    }
+    updateWindowState();
 }
 
 TitleBarActions *WorkspaceTitleBar::titleActions() const
@@ -136,8 +166,6 @@ void WorkspaceTitleBar::updateMetrics()
         button->setFixedSize(buttonWidth, buttonHeight);
         button->setIconSize(iconSize);
     }
-    minimize_->setIcon(QIcon(QStringLiteral(":/window-controls/minimize.svg")));
-    close_->setIcon(QIcon(QStringLiteral(":/window-controls/close.svg")));
     updateWindowState();
 }
 
@@ -180,7 +208,10 @@ void WorkspaceTitleBar::refreshHover()
         changed = true;
     }
     if (changed)
+    {
+        updateWindowState();
         window_->update(QRect(mapTo(window_, QPoint()), size()));
+    }
     if (maximizeMenu_ && maximizeMenu_->isVisible())
     {
         // 允许经过按钮和菜单之间的 6vp 间隙，移入菜单后继续检查原生鼠标位置。
@@ -272,8 +303,20 @@ void WorkspaceTitleBar::updateWindowState()
     title_->setText(window_->windowTitle());
     title_->setAccessibleName(window_->windowTitle());
     const QString text = restore ? QStringLiteral("还原") : QStringLiteral("最大化");
-    maximize_->setIcon(QIcon(restore ? QStringLiteral(":/window-controls/recover.svg")
-                                     : QStringLiteral(":/window-controls/maximize.svg")));
+    const auto setIcon = [this](QToolButton *button, const QString &path)
+    {
+        QPixmap pixels = QIcon(path).pixmap(button->iconSize());
+        QPainter painter(&pixels);
+        painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+        const bool light = lightForeground_ && !button->property("titleBarHover").toBool();
+        painter.fillRect(pixels.rect(), light ? Qt::white : Qt::black);
+        painter.end();
+        button->setIcon(QIcon(pixels));
+    };
+    setIcon(maximize_, restore ? QStringLiteral(":/window-controls/recover.svg")
+                               : QStringLiteral(":/window-controls/maximize.svg"));
+    setIcon(minimize_, QStringLiteral(":/window-controls/minimize.svg"));
+    setIcon(close_, QStringLiteral(":/window-controls/close.svg"));
     maximize_->setAccessibleName(text);
 }
 

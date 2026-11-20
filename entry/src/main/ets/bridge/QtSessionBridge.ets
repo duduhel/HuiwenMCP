@@ -77,6 +77,11 @@ export class QtSessionBridge {
     throw new Error(`未知 Qt 会话事件：${event.action}`);
   }
 
+  // ArkTS → Qt：仅调整自绘标题栏前景色，true 为白色，不改变应用图标及工作区主题。
+  updateTitleBarContrast(lightForeground: boolean): void {
+    this.deliver({ action: 'titleBarContrast', lightForeground: lightForeground });
+  }
+
   // ArkTS → Qt：返回系统选择的沙箱文档；取消传 null 且 error 为空，失败传错误，不覆盖原文档。
   completeDocumentSelection(document: HarmonySandboxDocument | null, error: string = ''): void {
     this.deliver({ action: 'pick', document: document ?? undefined, error: error });

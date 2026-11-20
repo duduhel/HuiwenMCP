@@ -11,6 +11,10 @@
     font-weight: bold;
 }
 
+#workspaceTitleBar[lightForeground="true"] QLabel {
+    color: #FFFFFF;
+}
+
 #workspaceTitleBar QToolButton {
     border: none;
     background: transparent;

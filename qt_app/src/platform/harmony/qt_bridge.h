@@ -46,6 +46,8 @@ class QtBridge : public QObject
     bool notifyColorCopied(const QString &format, const QString &value, const QString &color,
                            quint64 displayId);
   signals:
+    // ArkTS → Qt：标题栏空白区取色结果，true 使用白色前景，只影响当前工作区。
+    void titleBarContrastChanged(bool lightForeground);
     // 注册或解除会话后通知 Qt 重建／释放对应窗口，不直接结束应用进程。
     void workspaceChanged();
     // ArkTS → Qt：首页已就绪或用户选择退出，开始隐藏窗口并释放 CEF。

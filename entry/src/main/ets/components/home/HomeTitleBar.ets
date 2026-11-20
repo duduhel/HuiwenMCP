@@ -3,11 +3,14 @@ import { window } from '@kit.ArkUI';
 import { common } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
+import { TitleBarContrast } from '../../services/window/TitleBarContrast';
 
 @Component
 export struct HomeTitleBar {
   @State private barHeight: number = 37;
   @State private buttonsWidth: number = 160;
+  @State private titleColor: ResourceColor = $r('app.color.home_text');
+  private titleContrast: TitleBarContrast | undefined = undefined;
   private mainWindow: window.Window | undefined = undefined;
   private active: boolean = false;
   private onButtonsChanged = (rect: window.TitleButtonRect): void => {
@@ -26,6 +29,9 @@ export struct HomeTitleBar {
         return;
       }
       this.mainWindow = mainWindow;
+      this.titleContrast = new TitleBarContrast(context, mainWindow, (white: boolean): void => {
+        this.titleColor = white ? '#FFFFFF' : '#000000';
+      });
       this.onButtonsChanged(mainWindow.getTitleButtonRect());
       mainWindow.on('windowTitleButtonRectChange', this.onButtonsChanged);
     }).catch((error: Error) => this.reportError(error));
@@ -33,6 +39,8 @@ export struct HomeTitleBar {
 
   aboutToDisappear(): void {
     this.active = false;
+    this.titleContrast?.stop();
+    this.titleContrast = undefined;
     try {
       this.mainWindow?.off('windowTitleButtonRectChange', this.onButtonsChanged);
     } catch (error) {
@@ -103,7 +111,7 @@ export struct HomeTitleBar {
         Text($r('app.string.app_name'))
           .fontSize(16)
           .fontWeight(FontWeight.Bold)
-          .fontColor($r('app.color.home_text'))
+          .fontColor(this.titleColor)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .layoutWeight(1)

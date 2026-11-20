@@ -22,6 +22,7 @@ class WorkspaceTitleBar : public QWidget
     bool eventFilter(QObject *watched, QEvent *event) override;
 
   private:
+    void setLightForeground(bool light);
     void updateMetrics();
     void refreshHover();
     void updateWindowState();
@@ -38,6 +39,7 @@ class WorkspaceTitleBar : public QWidget
     QTimer maximizeMenuDelay_;
     QMenu *maximizeMenu_ = nullptr;
     qreal scale_ = 1;
+    bool lightForeground_ = false;
 #ifdef Q_OS_OPENHARMONY
     qint32 displayId_ = -1;
 #endif

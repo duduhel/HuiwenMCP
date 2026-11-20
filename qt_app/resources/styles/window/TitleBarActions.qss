@@ -21,7 +21,19 @@ QToolBar#workspaceTitleActions QToolButton[selected="true"] {
     background: #DCE1E8;
 }
 
+QToolBar#workspaceTitleActions[lightForeground="true"] QToolButton {
+    color: #FFFFFF;
+}
+
+QToolBar#workspaceTitleActions[lightForeground="true"] QToolButton[selected="true"] {
+    color: #000000;
+}
+
 QToolBar#workspaceTitleActions QToolButton:disabled {
+    color: #A0A8B4;
+}
+
+QToolBar#workspaceTitleActions[lightForeground="true"] QToolButton:disabled {
     color: #A0A8B4;
 }
 

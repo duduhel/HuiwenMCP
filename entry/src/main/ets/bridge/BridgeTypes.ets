@@ -22,6 +22,7 @@ export interface BridgeEvent {
 // ArkTS → Qt：具名方法组装的结果；document 为空表示取消或失败，error 为空表示无错误。
 export interface BridgeResult {
   action: string;
+  lightForeground?: boolean;
   document?: HarmonySandboxDocument;
   path?: string;
   error?: string;
