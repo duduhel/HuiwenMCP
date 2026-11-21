@@ -9,11 +9,18 @@ export interface ScreenshotShortcut {
   keyName?: string;
 }
 
+export enum TitleTextColor {
+  Follow = 'follow',
+  Black = 'black',
+  White = 'white'
+}
+
 export interface AppSettings {
   storageRoot: string;
   storageUri: string;
   recentLimit: number;
   closeAction: string;
+  titleTextColor: TitleTextColor;
   hiddenShortcut: ScreenshotShortcut;
   screenShortcut: ScreenshotShortcut;
   screenshotCacheRoot: string;
@@ -27,7 +34,7 @@ export const DEFAULT_SCREENSHOT_DOWNLOAD_DIR: string = '/storage/Users/currentUs
 
 export function defaultSettings(): AppSettings {
   return {
-    storageRoot: '', storageUri: '', recentLimit: 3, closeAction: 'home',
+    storageRoot: '', storageUri: '', recentLimit: 3, closeAction: 'home', titleTextColor: TitleTextColor.Follow,
     hiddenShortcut: { modifier: KeyCode.KEYCODE_CTRL_LEFT, key: KeyCode.KEYCODE_1 },
     screenShortcut: { modifier: KeyCode.KEYCODE_CTRL_LEFT, key: KeyCode.KEYCODE_2 },
     screenshotCacheRoot: '', screenshotCacheUri: '', screenshotDownloadRoot: '', screenshotDownloadUri: ''
@@ -52,6 +59,9 @@ export function readSettings(context: common.Context): AppSettings {
   result.storageUri = typeof uri === 'string' ? uri : '';
   result.recentLimit = limit === 5 || limit === 10 ? limit : 3;
   result.closeAction = store.getSync('closeAction', 'home') === 'exit' ? 'exit' : 'home';
+  const titleColor = store.getSync('titleTextColor', TitleTextColor.Follow);
+  result.titleTextColor = titleColor === TitleTextColor.Black ? TitleTextColor.Black :
+    titleColor === TitleTextColor.White ? TitleTextColor.White : TitleTextColor.Follow;
   const hiddenModifier = store.getSync('hiddenModifier', result.hiddenShortcut.modifier);
   const hiddenKey = store.getSync('hiddenKey', result.hiddenShortcut.key);
   const screenModifier = store.getSync('screenModifier', result.screenShortcut.modifier);
@@ -74,6 +84,7 @@ function writeSettings(store: preferences.Preferences, settings: AppSettings): v
   store.putSync('storageUri', settings.storageUri);
   store.putSync('recentLimit', settings.recentLimit);
   store.putSync('closeAction', settings.closeAction);
+  store.putSync('titleTextColor', settings.titleTextColor);
   store.putSync('hiddenModifier', settings.hiddenShortcut.modifier);
   store.putSync('hiddenKey', settings.hiddenShortcut.key);
   store.putSync('screenModifier', settings.screenShortcut.modifier);

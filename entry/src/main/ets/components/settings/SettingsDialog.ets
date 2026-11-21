@@ -2,7 +2,7 @@
 import { common } from '@kit.AbilityKit';
 import { HomeDialog } from '../common/HomeDialog';
 import { ShortcutInput } from './ShortcutInput';
-import { defaultSettings, readSettings, saveSettings, ScreenshotShortcut, workspaceRoot,
+import { defaultSettings, readSettings, saveSettings, ScreenshotShortcut, TitleTextColor, workspaceRoot,
   screenshotCacheRoot, screenshotDownloadRoot } from '../../services/settings/AppSettings';
 import { chooseWorkspaceLocation, cleanWorkspaceCache, openWorkspaceLocation,
   restoreWorkspaceLocation } from '../../services/settings/WorkspaceStorage';
@@ -11,6 +11,12 @@ import { applyScreenshotShortcuts, CANCEL_SHORTCUT_RECORDING,
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { changeScreenshotDirectory, openScreenshotDirectory } from '../../services/screenshot/ScreenshotHistory';
 import { closeScreenshotPreview } from '../../services/screenshot/ScreenshotPreview';
+import { requestScreenCapturePermission } from '../../services/screenshot/ScreenCapturePermission';
+
+const TITLE_COLOR_HELP: string = '跟随壁纸：需要屏幕捕获权限，根据透明标题栏后方的背景明暗自动调整文字颜色，' +
+  '取色画面仅在本机处理，不保存、不上传。未授权时可点击该选项申请。\n\n' +
+  '黑色／白色：固定文字颜色，不进行取色，可减少资源占用。\n\n' +
+  '为获得更好的使用体验，建议您选择浅色壁纸。';
 
 @Component
 export struct SettingsDialog {
@@ -21,6 +27,8 @@ export struct SettingsDialog {
   @State screenshotDownloadPath: string = '';
   @State recentLimit: number = 3;
   @State closeAction: string = 'home';
+  @State titleTextColor: TitleTextColor = TitleTextColor.Follow;
+  @State colorHelpVisible: boolean = false;
   @State hiddenShortcut: ScreenshotShortcut = defaultSettings().hiddenShortcut;
   @State screenShortcut: ScreenshotShortcut = defaultSettings().screenShortcut;
   @State busy: boolean = false;
@@ -43,6 +51,7 @@ export struct SettingsDialog {
     this.screenshotDownloadPath = screenshotDownloadRoot(context);
     this.recentLimit = settings.recentLimit;
     this.closeAction = settings.closeAction;
+    this.titleTextColor = settings.titleTextColor;
     this.hiddenShortcut = settings.hiddenShortcut;
     this.screenShortcut = settings.screenShortcut;
   }
@@ -62,6 +71,25 @@ export struct SettingsDialog {
     } catch (error) {
       this.message = (error as Error).message;
     } finally {
+      this.busy = false;
+    }
+  }
+
+  private async saveTitleTextColor(mode: TitleTextColor): Promise<void> {
+    if (this.busy) { return; }
+    this.busy = true;
+    this.message = '';
+    try {
+      if (mode === TitleTextColor.Follow && !await requestScreenCapturePermission(this.context())) {
+        this.message = '未获得屏幕捕获权限，自动取色暂不可用；您可以选择黑色或白色。';
+      }
+      const settings = readSettings(this.context());
+      settings.titleTextColor = mode;
+      await saveSettings(this.context(), settings);
+    } catch (error) {
+      this.message = (error as Error).message;
+    } finally {
+      this.reload();
       this.busy = false;
     }
   }
@@ -197,12 +225,32 @@ export struct SettingsDialog {
   }
 
   @Builder
-  sectionTitle(title: string) {
+  sectionTitle(title: string, colorHelp: boolean = false) {
     Column({ space: 8 }) {
-      Text(title)
-        .fontSize(16)
-        .fontWeight(FontWeight.Medium)
-        .fontColor($r('app.color.home_text'))
+      Row({ space: 8 }) {
+        Text(title)
+          .fontSize(16)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('app.color.home_text'))
+        if (colorHelp) {
+          Button({ type: ButtonType.Normal }) {
+            Image($r('app.media.titlebar_color_help')).width(18).height(18).draggable(false)
+          }
+          .width(24)
+          .height(24)
+          .padding(3)
+          .backgroundColor(Color.Transparent)
+          .borderRadius(12)
+          .accessibilityText('查看透明边框文字颜色说明')
+          .onHover((hovered: boolean): void => { this.colorHelpVisible = hovered; })
+          .onClick((): void => { this.colorHelpVisible = true; })
+          .bindPopup(this.colorHelpVisible, {
+            message: TITLE_COLOR_HELP,
+            placement: Placement.Bottom,
+            onStateChange: (event): void => { this.colorHelpVisible = event.isVisible; }
+          })
+        }
+      }
       Divider()
         .width('80%')
         .strokeWidth(1)
@@ -214,7 +262,7 @@ export struct SettingsDialog {
   }
 
   @Builder
-  choice(label: string, group: string, selected: boolean, action: () => void) {
+  choice(label: string, group: string, selected: boolean, action: () => void, repeatable: boolean = false) {
     Row({ space: 8 }) {
       Radio({ value: label, group: group })
         .checked(selected)
@@ -224,11 +272,13 @@ export struct SettingsDialog {
         .onChange((checked: boolean) => {
           if (checked && !selected) { action(); }
         })
+        // 自动模式可能已选中但尚未授权，允许再次点击来申请权限。
+        .onClick(() => { if (selected && repeatable) { action(); } })
       Text(label)
         .fontSize(14)
         .fontColor($r('app.color.home_text'))
         .layoutWeight(1)
-        .onClick(() => { if (!selected) { action(); } })
+        .onClick(() => { if (!selected || repeatable) { action(); } })
     }
     .width('100%')
     .constraintSize({ minHeight: 36 })
@@ -357,6 +407,21 @@ export struct SettingsDialog {
           }
           .width('100%')
           .alignItems(HorizontalAlign.Start)
+          Column({ space: 4 }) {
+            this.sectionTitle('透明边框文字颜色', true)
+            Row({ space: 12 }) {
+              ForEach([TitleTextColor.Follow, TitleTextColor.Black, TitleTextColor.White], (mode: TitleTextColor) => {
+                Column() {
+                  this.choice(mode === TitleTextColor.Follow ? '跟随壁纸' :
+                    mode === TitleTextColor.Black ? '黑色' : '白色', 'title-text-color', this.titleTextColor === mode,
+                    () => { this.saveTitleTextColor(mode); }, mode === TitleTextColor.Follow)
+                }
+                .layoutWeight(1)
+              }, (mode: TitleTextColor): string => mode)
+            }
+            .width('100%')
+          }
+          .width('100%')
           Column({ space: 12 }) {
             this.sectionTitle('截图设置')
             this.screenshotDirectory('截图下载目录', this.screenshotDownloadPath, false)

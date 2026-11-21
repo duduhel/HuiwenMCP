@@ -1,28 +1,52 @@
 // 标题栏试验性取色：整屏抓取只留在内存，读取两条窄像素行，不接触截图底图缓存。
 import { screenshot, window } from '@kit.ArkUI';
-import { abilityAccessCtrl, common } from '@kit.AbilityKit';
+import { common } from '@kit.AbilityKit';
 import { image } from '@kit.ImageKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
+import { readSettings, SETTINGS_CHANGED, TitleTextColor } from '../settings/AppSettings';
+import { hasScreenCapturePermission } from '../screenshot/ScreenCapturePermission';
 
 export class TitleBarContrast {
   private timer: number = -1;
   private stopped: boolean = false;
   private white: boolean | undefined = undefined;
   private measured: boolean = false;
+  private mode: TitleTextColor | undefined = undefined;
+  private revision: number = 0;
+  private inFlight: boolean = false;
   private context: common.Context;
   private target: window.Window;
   private apply: (white: boolean) => void;
+  private settingsChanged = (): void => {
+    if (this.stopped) { return; }
+    const mode = readSettings(this.context).titleTextColor;
+    if (mode === this.mode) { return; }
+    this.mode = mode;
+    this.revision++;
+    clearTimeout(this.timer);
+    this.white = undefined;
+    this.measured = false;
+    if (mode !== TitleTextColor.Follow) {
+      // 固定颜色不启动定时器，也不进入取色函数。
+      this.publish(mode === TitleTextColor.White);
+    } else if (!this.inFlight) {
+      this.timer = setTimeout((): void => { this.tick(); }, 0);
+    }
+  };
 
   constructor(context: common.Context, target: window.Window, apply: (white: boolean) => void) {
     this.context = context;
     this.target = target;
     this.apply = apply;
-    this.timer = setTimeout((): void => { this.tick(); }, 0);
+    context.getApplicationContext().eventHub.on(SETTINGS_CHANGED, this.settingsChanged);
+    this.settingsChanged();
   }
 
   stop(): void {
     this.stopped = true;
+    this.revision++;
     clearTimeout(this.timer);
+    this.context.getApplicationContext().eventHub.off(SETTINGS_CHANGED, this.settingsChanged);
   }
 
   private publish(white: boolean): void {
@@ -33,9 +57,12 @@ export class TitleBarContrast {
   }
 
   private async tick(): Promise<void> {
+    if (this.stopped || this.mode !== TitleTextColor.Follow || this.inFlight) { return; }
+    const revision = this.revision;
+    this.inFlight = true;
+    let failed = false;
     let pixels: image.PixelMap | undefined = undefined;
     try {
-      if (this.stopped) { return; }
       if (!this.target.isFocused()) {
         // 失焦时窗口容器已是不透明侧栏底色，直接按已知底色配文字，无需抓屏。
         const color = this.context.resourceManager.getColorSync($r('app.color.home_sidebar').id);
@@ -44,15 +71,11 @@ export class TitleBarContrast {
         return;
       }
       // 配色试验不主动弹权限申请；沿用用户已授予截图功能的权限。
-      const access = abilityAccessCtrl.createAtManager();
-      if (access.checkAccessTokenSync(this.context.applicationInfo.accessTokenId,
-        'ohos.permission.CUSTOM_SCREEN_CAPTURE') !== abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED) {
-        return;
-      }
+      if (!hasScreenCapturePermission(this.context)) { return; }
       const properties = this.target.getWindowProperties();
       const started = Date.now();
       pixels = await screenshot.capture({ displayId: properties.displayId });
-      if (this.stopped || !this.target.isFocused()) { return; }
+      if (this.stopped || revision !== this.revision || !this.target.isFocused()) { return; }
       const info = await pixels.getImageInfo();
       if (info.pixelFormat !== image.PixelMapFormat.RGBA_8888 &&
         info.pixelFormat !== image.PixelMapFormat.BGRA_8888 &&
@@ -81,7 +104,7 @@ export class TitleBarContrast {
             bytes[offset + blue] * 114) / 1000;
         }
       }
-      if (this.stopped || !this.target.isFocused() ||
+      if (this.stopped || revision !== this.revision || !this.target.isFocused() ||
         this.target.getWindowProperties().displayId !== properties.displayId) { return; }
       brightness /= 12;
       // 100～145 为保持区，避免临界亮度导致文字反复闪色。
@@ -96,17 +119,21 @@ export class TitleBarContrast {
       this.publish(white);
     } catch (error) {
       // 取色失败只停止本次窗口的试验，不干扰工作区或截图流程，也不循环报错。
-      this.stopped = true;
+      failed = true;
       hilog.warn(0xFF00, 'TitleBarContrast', 'HUIWEN_TITLE_CONTRAST_FAILED: %{public}s', (error as Error).message);
     } finally {
       if (pixels) {
         await pixels.release().catch((error: Error): void => {
-          this.stopped = true;
+          failed = true;
           hilog.warn(0xFF00, 'TitleBarContrast', 'HUIWEN_TITLE_CONTRAST_RELEASE_FAILED: %{public}s', error.message);
         });
       }
       // 完成本次后再计时，抓屏慢时不会叠加任务；实际周期为耗时 + 200ms。
-      if (!this.stopped) { this.timer = setTimeout((): void => { this.tick(); }, 200); }
+      this.inFlight = false;
+      // 设置切换后丢弃旧任务结果；只有当前仍为自动模式，才允许继续取色。
+      if (!this.stopped && this.mode === TitleTextColor.Follow && (!failed || revision !== this.revision)) {
+        this.timer = setTimeout((): void => { this.tick(); }, 200);
+      }
     }
   }
 }

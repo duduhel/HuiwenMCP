@@ -23,6 +23,9 @@ import { openFileDirectory } from '../services/FileManagerService';
 import { applyHomeAppearance, HomeAppearance } from '../utils/HomeAppearance';
 import { DocumentKind, DocumentMode } from '../utils/DocumentStore';
 import { hilog } from '@kit.PerformanceAnalysisKit';
+import { preferences } from '@kit.ArkData';
+import { requestScreenCapturePermission } from '../services/screenshot/ScreenCapturePermission';
+import { promptAction } from '@kit.ArkUI';
 
 @Entry
 @Component
@@ -53,6 +56,7 @@ struct HomePage {
   @State homeDialogId: number = -1;
   @State homeDialogOpening: boolean = false;
   private homeVisible: boolean = false;
+  private titleNoticePending: boolean = false;
   private recentRefreshPending: boolean = false;
   private settingsChanged = (): void => {
     const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
@@ -113,6 +117,38 @@ struct HomePage {
 
   onPageShow(): void {
     this.refreshRecentWorkspaces();
+    // 先完成本轮首页挂载和窗口初始化，再显示首次说明，不使用固定等待时长。
+    setTimeout((): void => { this.showTitleBarNotice(); }, 0);
+  }
+
+  private async showTitleBarNotice(): Promise<void> {
+    if (!this.homeVisible || this.titleNoticePending) { return; }
+    this.titleNoticePending = true;
+    try {
+      const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+      const store = preferences.getPreferencesSync(context.getApplicationContext(), { name: 'app_settings' });
+      if (store.getSync('titleBarPermissionNoticeSeen', false) === true) { return; }
+      const prompt = this.getUIContext().getPromptAction();
+      const options: promptAction.ShowDialogOptions = {
+        title: '温馨提示',
+        message: '为提升透明标题栏的显示效果，建议您允许屏幕捕获权限。\n\n' +
+          '开启后，我们会根据标题栏后方的背景明暗自动调整文字颜色。该权限同时用于截图功能。\n\n' +
+          '取色画面仅在本机内存中处理，不保存、不上传；手动截图按您的操作保存在本地。\n\n' +
+          '您也可以拒绝授权，之后在“应用设置”中手动选择文字颜色。',
+        buttons: [{ text: '设置权限', color: '#3983F7' }, { text: '拒绝', color: '#6B7280' }]
+      };
+      const result: promptAction.ShowDialogSuccessResponse = await prompt.showDialog(options);
+      // 两种选择均记住，不在返回首页或下次启动时反复提示；系统清理应用数据会重置。
+      store.putSync('titleBarPermissionNoticeSeen', true);
+      await store.flush();
+      if (result.index === 0 && this.homeVisible && !await requestScreenCapturePermission(context)) {
+        prompt.showToast({ message: '未获得屏幕捕获权限，您仍可在应用设置中选择黑色或白色文字。' });
+      }
+    } catch (error) {
+      hilog.warn(0xFF00, 'HuiwenMCP', 'HUIWEN_TITLE_NOTICE_FAILED: %{public}s', (error as Error).message);
+    } finally {
+      this.titleNoticePending = false;
+    }
   }
 
   private async refreshRecentWorkspaces(queueIfLoading: boolean = false): Promise<void> {

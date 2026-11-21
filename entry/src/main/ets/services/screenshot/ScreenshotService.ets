@@ -1,11 +1,12 @@
 // 截图入口与全局快捷键集中管理，避免把监听器绑定到会反复销毁的首页组件。
-import { abilityAccessCtrl, common, Permissions } from '@kit.AbilityKit';
+import { common } from '@kit.AbilityKit';
 import { inputConsumer, KeyCode } from '@kit.InputKit';
 import { window } from '@kit.ArkUI';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import nativeBridge from 'libhuiwen_native.so';
 import { AppSettings, readSettings, SETTINGS_CHANGED, ScreenshotShortcut } from '../settings/AppSettings';
 import { prepareScreenshotCache } from './ScreenshotHistory';
+import { requestScreenCapturePermission } from './ScreenCapturePermission';
 
 export const BEFORE_SCREENSHOT: string = 'huiwen.screenshot.before';
 export const CANCEL_SHORTCUT_RECORDING: string = 'huiwen.shortcut.cancelRecording';
@@ -192,15 +193,9 @@ export async function startScreenshot(hideApplication: boolean = false): Promise
   }
   busy = true;
   try {
-    const access = abilityAccessCtrl.createAtManager();
     // 已授权时不再请求权限弹窗，首页在后台时也能直接抓屏。
-    if (access.checkAccessTokenSync(context.applicationInfo.accessTokenId,
-      'ohos.permission.CUSTOM_SCREEN_CAPTURE') !== abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED) {
-      const permissions: Permissions[] = ['ohos.permission.CUSTOM_SCREEN_CAPTURE'];
-      const result = await access.requestPermissionsFromUser(context, permissions);
-      if (result.authResults.length === 0 || result.authResults[0] !== abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED) {
-        throw new Error('未获得屏幕截图权限');
-      }
+    if (!await requestScreenCapturePermission(context)) {
+      throw new Error('未获得屏幕截图权限');
     }
     await prepareScreenshotCache(context);
     context.getApplicationContext().eventHub.emit(BEFORE_SCREENSHOT);
