@@ -16,7 +16,7 @@ import { FileManagerDialog } from '../components/fileManager/FileManagerDialog';
 import { SettingsDialog } from '../components/settings/SettingsDialog';
 import { ScreenshotDialog } from '../components/screenshot/ScreenshotDialog';
 import { closeScreenshotPreview } from '../services/screenshot/ScreenshotPreview';
-import { readSettings, SETTINGS_CHANGED } from '../services/settings/AppSettings';
+import { readSettings, saveSettings, SETTINGS_CHANGED, TitleTextColor } from '../services/settings/AppSettings';
 import { BEFORE_SCREENSHOT, CANCEL_SHORTCUT_RECORDING, isScreenshotRunning } from '../services/screenshot/ScreenshotService';
 import { FileManagerFile } from '../models/FileManagerFile';
 import { openFileDirectory } from '../services/FileManagerService';
@@ -128,6 +128,11 @@ struct HomePage {
       const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
       const store = preferences.getPreferencesSync(context.getApplicationContext(), { name: 'app_settings' });
       if (store.getSync('titleBarPermissionNoticeSeen', false) === true) { return; }
+      const settings = readSettings(context);
+      if (settings.titleTextColor !== TitleTextColor.Black) {
+        settings.titleTextColor = TitleTextColor.Black;
+        await saveSettings(context, settings);
+      }
       const prompt = this.getUIContext().getPromptAction();
       const options: promptAction.ShowDialogOptions = {
         title: '温馨提示',
@@ -138,11 +143,18 @@ struct HomePage {
         buttons: [{ text: '设置权限', color: '#3983F7' }, { text: '拒绝', color: '#6B7280' }]
       };
       const result: promptAction.ShowDialogSuccessResponse = await prompt.showDialog(options);
-      // 两种选择均记住，不在返回首页或下次启动时反复提示；系统清理应用数据会重置。
+      if (result.index !== 0 && result.index !== 1) { return; }
+      // 仅点击按钮后记住选择；外围关闭不记录，系统清理应用数据会重置。
       store.putSync('titleBarPermissionNoticeSeen', true);
       await store.flush();
-      if (result.index === 0 && this.homeVisible && !await requestScreenCapturePermission(context)) {
-        prompt.showToast({ message: '未获得屏幕捕获权限，您仍可在应用设置中选择黑色或白色文字。' });
+      if (result.index === 0 && this.homeVisible) {
+        if (await requestScreenCapturePermission(context)) {
+          const authorizedSettings = readSettings(context);
+          authorizedSettings.titleTextColor = TitleTextColor.Follow;
+          await saveSettings(context, authorizedSettings);
+        } else {
+          prompt.showToast({ message: '未获得屏幕捕获权限，已使用黑色文字。您可以稍后在应用设置中重新开启。' });
+        }
       }
     } catch (error) {
       hilog.warn(0xFF00, 'HuiwenMCP', 'HUIWEN_TITLE_NOTICE_FAILED: %{public}s', (error as Error).message);

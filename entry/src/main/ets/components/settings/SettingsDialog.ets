@@ -27,7 +27,7 @@ export struct SettingsDialog {
   @State screenshotDownloadPath: string = '';
   @State recentLimit: number = 3;
   @State closeAction: string = 'home';
-  @State titleTextColor: TitleTextColor = TitleTextColor.Follow;
+  @State titleTextColor: TitleTextColor = TitleTextColor.Black;
   @State colorHelpVisible: boolean = false;
   @State hiddenShortcut: ScreenshotShortcut = defaultSettings().hiddenShortcut;
   @State screenShortcut: ScreenshotShortcut = defaultSettings().screenShortcut;
@@ -80,8 +80,26 @@ export struct SettingsDialog {
     this.busy = true;
     this.message = '';
     try {
-      if (mode === TitleTextColor.Follow && !await requestScreenCapturePermission(this.context())) {
-        this.message = '未获得屏幕捕获权限，自动取色暂不可用；您可以选择黑色或白色。';
+      if (mode === TitleTextColor.Follow) {
+        // 确认或授权完成前保持黑色，取消及拒绝均不启动取色。
+        const settings = readSettings(this.context());
+        settings.titleTextColor = TitleTextColor.Black;
+        await saveSettings(this.context(), settings);
+        this.reload();
+        const confirmed: boolean = await new Promise<boolean>((resolve): void => {
+          this.getUIContext().showAlertDialog({
+            title: '启用跟随壁纸？',
+            message: '需要屏幕捕获权限，以检测透明标题栏后方的背景明暗。取色画面仅在本机内存中处理，不保存、不上传。',
+            primaryButton: { value: '取消', action: (): void => { resolve(false); } },
+            secondaryButton: { value: '确认开启', action: (): void => { resolve(true); } },
+            cancel: (): void => { resolve(false); }
+          });
+        });
+        if (!confirmed) { return; }
+        if (!await requestScreenCapturePermission(this.context())) {
+          this.message = '未获得屏幕捕获权限，已使用黑色文字。';
+          return;
+        }
       }
       const settings = readSettings(this.context());
       settings.titleTextColor = mode;
@@ -247,6 +265,7 @@ export struct SettingsDialog {
           .bindPopup(this.colorHelpVisible, {
             message: TITLE_COLOR_HELP,
             placement: Placement.Bottom,
+            mask: false,
             onStateChange: (event): void => { this.colorHelpVisible = event.isVisible; }
           })
         }

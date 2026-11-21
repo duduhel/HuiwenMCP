@@ -34,7 +34,7 @@ export const DEFAULT_SCREENSHOT_DOWNLOAD_DIR: string = '/storage/Users/currentUs
 
 export function defaultSettings(): AppSettings {
   return {
-    storageRoot: '', storageUri: '', recentLimit: 3, closeAction: 'home', titleTextColor: TitleTextColor.Follow,
+    storageRoot: '', storageUri: '', recentLimit: 3, closeAction: 'home', titleTextColor: TitleTextColor.Black,
     hiddenShortcut: { modifier: KeyCode.KEYCODE_CTRL_LEFT, key: KeyCode.KEYCODE_1 },
     screenShortcut: { modifier: KeyCode.KEYCODE_CTRL_LEFT, key: KeyCode.KEYCODE_2 },
     screenshotCacheRoot: '', screenshotCacheUri: '', screenshotDownloadRoot: '', screenshotDownloadUri: ''
@@ -59,9 +59,9 @@ export function readSettings(context: common.Context): AppSettings {
   result.storageUri = typeof uri === 'string' ? uri : '';
   result.recentLimit = limit === 5 || limit === 10 ? limit : 3;
   result.closeAction = store.getSync('closeAction', 'home') === 'exit' ? 'exit' : 'home';
-  const titleColor = store.getSync('titleTextColor', TitleTextColor.Follow);
-  result.titleTextColor = titleColor === TitleTextColor.Black ? TitleTextColor.Black :
-    titleColor === TitleTextColor.White ? TitleTextColor.White : TitleTextColor.Follow;
+  const titleColor = store.getSync('titleTextColor', TitleTextColor.Black);
+  result.titleTextColor = titleColor === TitleTextColor.Follow ? TitleTextColor.Follow :
+    titleColor === TitleTextColor.White ? TitleTextColor.White : TitleTextColor.Black;
   const hiddenModifier = store.getSync('hiddenModifier', result.hiddenShortcut.modifier);
   const hiddenKey = store.getSync('hiddenKey', result.hiddenShortcut.key);
   const screenModifier = store.getSync('screenModifier', result.screenShortcut.modifier);
