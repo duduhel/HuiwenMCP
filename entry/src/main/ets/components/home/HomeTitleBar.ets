@@ -1,6 +1,6 @@
 // 首页自绘标题区：仅绘制图标和名称，右侧三键继续由鸿蒙系统承载。
 import { window } from '@kit.ArkUI';
-import { common } from '@kit.AbilityKit';
+import { common, ConfigurationConstant } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { TitleBarContrast } from '../../services/window/TitleBarContrast';
@@ -31,6 +31,15 @@ export struct HomeTitleBar {
       this.mainWindow = mainWindow;
       this.titleContrast = new TitleBarContrast(context, mainWindow, (white: boolean): void => {
         this.titleColor = white ? '#FFFFFF' : '#000000';
+        try {
+          // 保留原生三键尺寸和间距，仅同步图标的明暗模式。
+          const style = mainWindow.getDecorButtonStyle();
+          style.colorMode = white ? ConfigurationConstant.ColorMode.COLOR_MODE_DARK :
+            ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT;
+          mainWindow.setDecorButtonStyle(style);
+        } catch (error) {
+          this.reportError(error as Error);
+        }
       });
       this.onButtonsChanged(mainWindow.getTitleButtonRect());
       mainWindow.on('windowTitleButtonRectChange', this.onButtonsChanged);
