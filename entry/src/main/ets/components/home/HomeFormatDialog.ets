@@ -63,8 +63,15 @@ export struct HomeFormatDialog {
     if (this.feature === HomeFeature.Preview || this.feature === HomeFeature.Edit) {
       // 文件在 Qt 工作区内选择。
       Row({ space: 12 }) {
-        this.formatItem('Word', $r('app.media.home_format_word'), DocumentKind.Word)
-        this.formatItem('PDF', $r('app.media.home_format_pdf'), DocumentKind.PDF)
+        if (this.feature === HomeFeature.Preview) {
+          this.formatItem('Word', $r('app.media.home_format_word'), DocumentKind.Word)
+          this.formatItem('PDF', $r('app.media.home_format_pdf'), DocumentKind.PDF)
+        }
+        // Word、PDF 编辑暂未开放，先保留入口代码，不展示占位图。
+        // if (this.feature === HomeFeature.Edit) {
+        //   this.formatItem('Word', $r('app.media.home_format_word'), DocumentKind.Word)
+        //   this.formatItem('PDF', $r('app.media.home_format_pdf'), DocumentKind.PDF)
+        // }
         this.formatItem('MD', $r('app.media.home_format_md'), DocumentKind.Markdown)
       }
     } else if (this.feature === HomeFeature.Convert) {
