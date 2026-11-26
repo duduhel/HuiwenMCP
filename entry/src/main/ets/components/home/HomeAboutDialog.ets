@@ -1,7 +1,22 @@
+// 关于弹窗：展示应用信息，并提供外部网页入口。
+import { common } from '@kit.AbilityKit';
+import { hilog } from '@kit.PerformanceAnalysisKit';
+
 @Component
 export struct HomeAboutDialog {
   @Prop version: string = '';
   onClose: () => void = () => {};
+
+  private async openWebsite(url: string): Promise<void> {
+    try {
+      const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+      // 交由系统打开网页，不在应用内嵌入浏览器。
+      await context.openLink(url);
+    } catch (error) {
+      hilog.warn(0xFF00, 'HuiwenMCP', '打开关于网页失败：%{public}s', (error as Error).message);
+      this.getUIContext().getPromptAction().showToast({ message: `无法打开网页，请通过浏览器访问 ${url}` });
+    }
+  }
 
   build() {
     Stack({ alignContent: Alignment.TopEnd }) {
@@ -26,6 +41,27 @@ export struct HomeAboutDialog {
           .lineHeight(22)
           .fontColor($r('app.color.home_muted'))
           .textAlign(TextAlign.Center)
+        Row({ space: 16 }) {
+          Button('汇文官网', { type: ButtonType.Normal })
+            .fontSize(14)
+            .fontColor('#576b95')
+            .backgroundColor(Color.Transparent)
+            .padding({ left: 0, right: 0, top: 8, bottom: 8 })
+            .accessibilityText('在外部浏览器打开汇文官网')
+            .onClick(() => this.openWebsite('https://huiwenlab.com/'))
+          Divider()
+            .vertical(true)
+            .height(16)
+            .strokeWidth(1)
+            .color('#D9D9D9')
+          Button('隐私协议', { type: ButtonType.Normal })
+            .fontSize(14)
+            .fontColor('#576b95')
+            .backgroundColor(Color.Transparent)
+            .padding({ left: 0, right: 0, top: 8, bottom: 8 })
+            .accessibilityText('在外部浏览器打开隐私协议')
+            .onClick(() => this.openWebsite('https://huiwenlab.com/privacy/'))
+        }
       }
       .width('100%')
       .padding({ top: 36, bottom: 32, left: 28, right: 28 })
