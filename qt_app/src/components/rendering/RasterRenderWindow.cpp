@@ -81,9 +81,9 @@ bool RasterRenderWindow::event(QEvent *event)
                             : event->type() == QEvent::TouchCancel)
             return QCoreApplication::sendEvent(inputTarget_, event);
     }
-    // 原生窗口收到的滚轮、触控板阶段和键盘事件仍交给原有滚动控制器。
-    if (inputTarget_ && (event->type() == QEvent::Wheel || event->type() == QEvent::KeyPress ||
-                         event->type() == QEvent::KeyRelease))
+    // 捏合交给视口的文档缩放入口；滚轮、触控板平移和键盘沿用原有链路。
+    if (inputTarget_ && (event->type() == QEvent::NativeGesture || event->type() == QEvent::Wheel ||
+                         event->type() == QEvent::KeyPress || event->type() == QEvent::KeyRelease))
         return QCoreApplication::sendEvent(inputTarget_, event);
     if (inputTarget_ && event->type() == QEvent::MouseButtonPress)
         inputTarget_->setFocus(Qt::MouseFocusReason);

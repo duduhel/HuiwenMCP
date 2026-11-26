@@ -101,6 +101,30 @@ class MarkdownReporter final : public CefV8Handler
     IMPLEMENT_REFCOUNTING(MarkdownReporter);
 };
 
+// Word 页面只上报实际缩放比例，不开放编辑或文件操作能力。
+class ZoomReporter final : public CefV8Handler
+{
+  public:
+    bool Execute(const CefString &, CefRefPtr<CefV8Value>, const CefV8ValueList &arguments,
+                 CefRefPtr<CefV8Value> &retval, CefString &) override
+    {
+        if (arguments.size() != 1 || !arguments[0]->IsInt())
+            return false;
+        const int percent = arguments[0]->GetIntValue();
+        const auto context = CefV8Context::GetCurrentContext();
+        if (percent < 25 || percent > 400 || !context || !context->GetFrame()->IsMain())
+            return false;
+        const auto message = CefProcessMessage::Create("Huiwen.PreviewZoom");
+        message->GetArgumentList()->SetInt(0, percent);
+        context->GetFrame()->SendProcessMessage(PID_BROWSER, message);
+        retval = CefV8Value::CreateUndefined();
+        return true;
+    }
+
+  private:
+    IMPLEMENT_REFCOUNTING(ZoomReporter);
+};
+
 class PreviewRenderApp final : public CefApp, public CefRenderProcessHandler
 {
   public:
@@ -126,6 +150,11 @@ class PreviewRenderApp final : public CefApp, public CefRenderProcessHandler
                 "huiwenReportPreview",
                 CefV8Value::CreateFunction("huiwenReportPreview", new PreviewReporter),
                 V8_PROPERTY_ATTRIBUTE_READONLY);
+            if (url.rfind("data:text/html;base64,", 0) == 0)
+                context->GetGlobal()->SetValue(
+                    "huiwenReportZoom",
+                    CefV8Value::CreateFunction("huiwenReportZoom", new ZoomReporter),
+                    V8_PROPERTY_ATTRIBUTE_READONLY);
         }
     }
 

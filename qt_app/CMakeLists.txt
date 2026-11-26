@@ -28,6 +28,7 @@ set(workspace_sources
     src/components/ConvertButton.cpp
     src/components/splitter/WorkspaceSplitter.cpp
     src/components/scrollBar/DocumentScrollBar.cpp
+    src/components/zoom/DocumentZoomBar.cpp
     src/components/functionBar/FunctionBar.cpp
     src/components/window/menus/FileMenu.cpp
     src/components/window/menus/ModeMenu.cpp

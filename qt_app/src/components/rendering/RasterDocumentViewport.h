@@ -21,6 +21,7 @@ class RasterDocumentViewport : public QAbstractScrollArea, public DocumentRender
     void documentOpened(const QString &path);
     void previewReadyChanged(bool ready);
     void scrollPositionChanged(int page, double fraction, double progress);
+    void zoomPercentChanged(int percent);
 
   protected:
     bool viewportEvent(QEvent *event) override;
@@ -35,4 +36,5 @@ class RasterDocumentViewport : public QAbstractScrollArea, public DocumentRender
     DocumentScrollController *scrollController_;
     QScroller *touchScroller_;
     bool touchInertiaEnabled_ = true;
+    qreal gestureZoom_ = 100;
 };

@@ -200,13 +200,14 @@ class PreviewClient final : public CefClient,
     using Notice = std::function<void(bool, const QString &)>;
     using ScrollNotice = std::function<void(int, double, double)>;
     using MarkdownNotice = std::function<void(const QJsonObject &)>;
+    using ZoomNotice = std::function<void(int)>;
     PreviewClient(QString url, QByteArray html, QString text, QString imageRoot,
                   bool scrollBarVisible, Notice notice, ScrollNotice scrollNotice,
-                  MarkdownNotice markdownNotice)
+                  MarkdownNotice markdownNotice, ZoomNotice zoomNotice)
         : url_(std::move(url)), html_(std::move(html)), text_(std::move(text)),
           imageRoot_(std::move(imageRoot)), notice_(std::move(notice)),
           scrollNotice_(std::move(scrollNotice)), markdownNotice_(std::move(markdownNotice)),
-          scrollBarVisible_(scrollBarVisible)
+          zoomNotice_(std::move(zoomNotice)), scrollBarVisible_(scrollBarVisible)
     {
     }
     CefRefPtr<CefLifeSpanHandler> GetLifeSpanHandler() override { return this; }
@@ -388,6 +389,14 @@ class PreviewClient final : public CefClient,
             "window.huiwenReportScroll(position.page, position.fraction, position.progress); })();",
             url_.toStdString(), 0);
     }
+    void setZoomPercent(int percent)
+    {
+        if (!browser_ || !loaded_ || closing_ ||
+            !url_.startsWith(QStringLiteral("data:text/html;base64,")))
+            return;
+        const auto script = QStringLiteral("window.HuiwenPreview.setZoomPercent(%1);").arg(percent);
+        browser_->GetMainFrame()->ExecuteJavaScript(script.toStdString(), url_.toStdString(), 0);
+    }
     void setScrollBarVisible(bool visible)
     {
         scrollBarVisible_ = visible;
@@ -410,7 +419,8 @@ class PreviewClient final : public CefClient,
     {
         if (message->GetName() != "Huiwen.Markdown" &&
             message->GetName() != "Huiwen.PreviewScroll" &&
-            message->GetName() != "Huiwen.PreviewState")
+            message->GetName() != "Huiwen.PreviewState" &&
+            message->GetName() != "Huiwen.PreviewZoom")
             return false;
         if (closing_ || !frameLoaded_ || source != PID_RENDERER || !frame->IsMain() ||
             frame->GetURL().ToString() != url_.toStdString())
@@ -458,6 +468,17 @@ class PreviewClient final : public CefClient,
         }
         if (!loaded_)
             return true;
+        if (message->GetName() == "Huiwen.PreviewZoom")
+        {
+            if (url_.startsWith(QStringLiteral("data:text/html;base64,")) &&
+                values->GetSize() == 1 && values->GetType(0) == VTYPE_INT)
+            {
+                const int percent = values->GetInt(0);
+                if (percent >= 25 && percent <= 400)
+                    zoomNotice_(percent);
+            }
+            return true;
+        }
         if (values->GetSize() != 3 || values->GetType(0) != VTYPE_INT ||
             values->GetType(1) != VTYPE_DOUBLE || values->GetType(2) != VTYPE_DOUBLE)
             return true;
@@ -610,6 +631,7 @@ class PreviewClient final : public CefClient,
     Notice notice_;
     ScrollNotice scrollNotice_;
     MarkdownNotice markdownNotice_;
+    ZoomNotice zoomNotice_;
     CefRefPtr<CefBrowser> browser_;
     bool closing_ = false;
     bool loaded_ = false;
@@ -637,6 +659,7 @@ class CefDocumentPreviewWidget::Private
     bool visible = false;
     int generation = 0;
     bool scrollBarVisible = true;
+    int zoomPercent = 100;
 #ifdef Q_OS_OPENHARMONY
     CefRefPtr<PreviewClient> client;
 #endif
@@ -670,6 +693,7 @@ void CefDocumentPreviewWidget::setDocument(const QString &path)
 {
     closeBrowser();
     d_->path = path;
+    d_->zoomPercent = 100;
     d_->valid = false;
     d_->text.clear();
     d_->url.clear();
@@ -836,6 +860,21 @@ void CefDocumentPreviewWidget::openBrowser()
                 if (self && self->d_->generation == generation)
                     emit self->markdownMessage(message);
             }, Qt::QueuedConnection);
+        },
+        [self, generation](int percent)
+        {
+            QMetaObject::invokeMethod(
+                qApp,
+                [self, generation, percent]
+                {
+                    if (self && self->d_->generation == generation &&
+                        self->d_->zoomPercent != percent)
+                    {
+                        self->d_->zoomPercent = percent;
+                        emit self->zoomPercentChanged(percent);
+                    }
+                },
+                Qt::QueuedConnection);
         });
     const auto client = d_->client;
     const auto parent = static_cast<CefWindowHandle>(window()->winId());
@@ -943,6 +982,24 @@ void CefDocumentPreviewWidget::setViewOptions(const DocumentViewOptions &options
     if (client && CefRuntime::instance().state == CefRuntime::Ready)
         postCef([client, visible = options.scrollBarVisible]
                 { client->setScrollBarVisible(visible); });
+#endif
+}
+
+int CefDocumentPreviewWidget::zoomPercent() const
+{
+    return d_->zoomPercent;
+}
+
+void CefDocumentPreviewWidget::setZoomPercent(int percent)
+{
+    if (d_->format != Format::Word || !isPreviewReady())
+        return;
+#ifdef Q_OS_OPENHARMONY
+    const auto client = d_->client;
+    if (client)
+        postCef([client, percent] { client->setZoomPercent(qBound(25, percent, 400)); });
+#else
+    Q_UNUSED(percent);
 #endif
 }
 

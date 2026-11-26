@@ -24,6 +24,7 @@ int pdfiumUsers = 0;
 constexpr int pageMargin = 24;
 constexpr int pageGap = 16;
 constexpr int maxRenderPixels = 16 * 1024 * 1024;
+constexpr qreal pixelsPerPoint = 96.0 / 72.0;
 } // namespace
 
 struct PdfPreviewDocument
@@ -130,6 +131,7 @@ PdfPreviewResult renderPage(const std::shared_ptr<PdfPreviewDocument> &document,
 PdfPreviewWidget::PdfPreviewWidget(QWidget *parent) : RasterDocumentViewport(parent)
 {
     setAccessibleName(QStringLiteral("PDF 正文预览"));
+    setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     // 尺寸持续变化时只按约一帧处理一次最新布局，避免每个鼠标事件都遍历所有页。
     layoutTimer_.setSingleShot(true);
     layoutTimer_.setInterval(16);
@@ -186,7 +188,8 @@ PdfPreviewWidget::PdfPreviewWidget(QWidget *parent) : RasterDocumentViewport(par
                         images_.insert(result.page, new QImage(result.image),
                                        static_cast<int>(result.image.sizeInBytes()));
                         renderWindow_->invalidate(pageRects_[result.page]
-                                                      .translated(0, -verticalScrollBar()->value())
+                                                      .translated(-horizontalScrollBar()->value(),
+                                                                  -verticalScrollBar()->value())
                                                       .toAlignedRect());
                     }
                 }
@@ -219,11 +222,16 @@ void PdfPreviewWidget::setDocument(const QString &path)
     layoutError_.clear();
     pageSizes_.clear();
     pageRects_.clear();
+    zoom_ = 0;
+    effectiveZoom_ = 1;
+    layoutViewportSize_ = {};
     images_.clear();
     document_.reset();
     layoutTimer_.stop();
     resizeTimer_.stop();
     verticalScrollBar()->setRange(0, 0);
+    horizontalScrollBar()->setRange(0, 0);
+    emit zoomPercentChanged(100);
     emit previewReadyChanged(false);
     loadPending_ = !path.isEmpty();
     message_ = loadPending_ ? QStringLiteral("正在打开 PDF…") : QString();
@@ -236,6 +244,24 @@ void PdfPreviewWidget::setDocument(const QString &path)
 bool PdfPreviewWidget::isPreviewReady() const
 {
     return isVisible() && !pageRects_.isEmpty() && message_.isEmpty() && layoutError_.isEmpty();
+}
+
+int PdfPreviewWidget::zoomPercent() const
+{
+    return qRound(effectiveZoom_ * 100);
+}
+
+void PdfPreviewWidget::setZoomPercent(int percent)
+{
+    const qreal zoom = qBound(25, percent, 400) / 100.0;
+    if (qFuzzyCompare(zoom_, zoom))
+        return;
+    zoom_ = zoom;
+    stopScrolling();
+    // 拖动滑块时先重排并复用已有位图，停止后沿用原有高清补绘。
+    resizeTimer_.start();
+    if (!layoutTimer_.isActive())
+        layoutTimer_.start();
 }
 
 void PdfPreviewWidget::publishScrollPosition()
@@ -282,30 +308,51 @@ void PdfPreviewWidget::layoutPages()
     stopScrolling();
     QScopedValueRollback<bool> applying(applyingScroll_, true);
     layoutError_.clear();
-    const int anchor = firstVisiblePage();
-    const bool hasAnchor = anchor < pageRects_.size();
+    const int previousPercent = zoomPercent();
+    const QSize viewportSize = viewport()->size();
+    const qreal center = verticalScrollBar()->value() + layoutViewportSize_.height() / 2.0;
+    int anchor = 0;
+    while (anchor + 1 < pageRects_.size() && pageRects_[anchor].bottom() < center)
+        ++anchor;
+    const bool hasAnchor = !pageRects_.isEmpty() && !layoutViewportSize_.isEmpty();
     qreal fraction = 0;
     if (hasAnchor)
         fraction =
-            (verticalScrollBar()->value() - pageRects_[anchor].top()) / pageRects_[anchor].height();
-    const qreal width = std::max(1, viewport()->width() - 2 * pageMargin);
+            qBound(0.0, (center - pageRects_[anchor].top()) / pageRects_[anchor].height(), 1.0);
+    qreal maximumWidth = 0;
+    for (const QSizeF &size : pageSizes_)
+        maximumWidth = std::max(maximumWidth, size.width() * pixelsPerPoint);
+    effectiveZoom_ =
+        zoom_ > 0 ? zoom_
+        : maximumWidth > 0
+            ? qBound(0.25, (viewportSize.width() - 2.0 * pageMargin) / maximumWidth, 4.0)
+            : 1.0;
+    const qreal contentWidth =
+        std::max(qreal(viewportSize.width()), maximumWidth * effectiveZoom_ + 2 * pageMargin);
     QVector<QRectF> rectangles;
     rectangles.reserve(pageSizes_.size());
     qreal top = pageMargin;
     for (const QSizeF &size : pageSizes_)
     {
-        const qreal height = width * size.height() / size.width();
-        if (!std::isfinite(height) ||
+        const qreal width = size.width() * pixelsPerPoint * effectiveZoom_;
+        const qreal height = size.height() * pixelsPerPoint * effectiveZoom_;
+        if (!std::isfinite(contentWidth) || contentWidth > std::numeric_limits<int>::max() ||
+            !std::isfinite(height) ||
             top + height + pageMargin + pageGap > std::numeric_limits<int>::max())
         {
             layoutError_ = QStringLiteral("PDF 页面尺寸超过可显示范围，请更换文件或缩小预览区域");
             pageRects_.clear();
             verticalScrollBar()->setRange(0, 0);
+            horizontalScrollBar()->setRange(0, 0);
             return;
         }
-        rectangles.append(QRectF(pageMargin, top, width, height));
+        rectangles.append(QRectF((contentWidth - width) / 2.0, top, width, height));
         top += height + pageGap;
     }
+    const qreal contentHeight = rectangles.isEmpty() ? 0 : top - pageGap + pageMargin;
+    if (contentHeight < viewportSize.height())
+        for (QRectF &rect : rectangles)
+            rect.translate(0, (viewportSize.height() - contentHeight) / 2.0);
     pageRects_ = std::move(rectangles);
     // 预算只随布局变化，避免跨页时因可见页数变化反复使位图缓存失效。
     int maxVisible = 1;
@@ -318,13 +365,20 @@ void PdfPreviewWidget::layoutPages()
         maxVisible = std::max(maxVisible, end - first);
     }
     renderPixelBudget_ = maxRenderPixels / maxVisible;
-    verticalScrollBar()->setPageStep(viewport()->height());
-    const int height =
-        pageRects_.isEmpty() ? 0 : static_cast<int>(std::ceil(top - pageGap + pageMargin));
-    verticalScrollBar()->setRange(0, std::max(0, height - viewport()->height()));
+    verticalScrollBar()->setPageStep(viewportSize.height());
+    verticalScrollBar()->setRange(
+        0, std::max(0, static_cast<int>(std::ceil(contentHeight)) - viewportSize.height()));
+    horizontalScrollBar()->setPageStep(viewportSize.width());
+    horizontalScrollBar()->setRange(
+        0, std::max(0, static_cast<int>(std::ceil(contentWidth)) - viewportSize.width()));
+    horizontalScrollBar()->setValue(horizontalScrollBar()->maximum() / 2);
     if (hasAnchor && anchor < pageRects_.size())
-        verticalScrollBar()->setValue(
-            static_cast<int>(pageRects_[anchor].top() + fraction * pageRects_[anchor].height()));
+        verticalScrollBar()->setValue(qRound(pageRects_[anchor].top() +
+                                             fraction * pageRects_[anchor].height() -
+                                             viewportSize.height() / 2.0));
+    layoutViewportSize_ = viewportSize;
+    if (previousPercent != zoomPercent())
+        emit zoomPercentChanged(zoomPercent());
 }
 
 QSize PdfPreviewWidget::renderSize(int page) const
@@ -411,7 +465,7 @@ void PdfPreviewWidget::paintDocument(QPainter &painter, const QRegion &region)
     for (int page = firstVisiblePage(); page < pageRects_.size() && pageRects_[page].top() < bottom;
          ++page)
     {
-        const QRectF rect = pageRects_[page].translated(0, -offset);
+        const QRectF rect = pageRects_[page].translated(-horizontalScrollBar()->value(), -offset);
         if (!region.intersects(rect.toAlignedRect()))
             continue;
         painter.fillRect(rect, Qt::white);

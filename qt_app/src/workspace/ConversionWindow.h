@@ -15,6 +15,7 @@ class QLabel;
 class QAction;
 class CefDocumentPreviewWidget;
 class NavigationSidebar;
+class DocumentZoomBar;
 
 class ConversionWindow : public QWidget
 {
@@ -39,6 +40,7 @@ class ConversionWindow : public QWidget
                    bool restoring = false);
     bool loadSelectedDocument();
     void refreshBusyState();
+    void refreshZoomBar();
     void exportOutput();
     void refreshScrollSync();
     bool scrollSyncEnabled() const;
@@ -74,6 +76,7 @@ class ConversionWindow : public QWidget
     ConversionService *conversion_ = nullptr;
     SandboxService *sandbox_;
     QLabel *status_;
+    DocumentZoomBar *zoomBar_;
     DocumentItem document_;
     bool picking_ = false;
     bool exporting_ = false;

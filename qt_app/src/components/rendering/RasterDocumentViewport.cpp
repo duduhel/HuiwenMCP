@@ -4,6 +4,7 @@
 #include "components/scrollBar/DocumentScrollBar.h"
 #include "components/scrolling/DocumentScrollController.h"
 #include <QHideEvent>
+#include <QNativeGestureEvent>
 #include <QResizeEvent>
 #include <QScroller>
 #include <QScrollerProperties>
@@ -72,6 +73,43 @@ void RasterDocumentViewport::stopScrolling()
 bool RasterDocumentViewport::viewportEvent(QEvent *event)
 {
     const auto type = event->type();
+    if (type == QEvent::NativeGesture && isPreviewReady())
+    {
+        auto *gesture = static_cast<QNativeGestureEvent *>(event);
+        switch (gesture->gestureType())
+        {
+        case Qt::BeginNativeGesture:
+            stopScrolling();
+            gestureZoom_ = zoomPercent();
+            break;
+        case Qt::ZoomNativeGesture:
+        {
+            stopScrolling();
+#ifdef Q_OS_OPENHARMONY
+            // 鸿蒙 QPA 直接上报触屏／触控板相对手势起点的累计倍率。
+            const qreal percent = gestureZoom_ * gesture->value();
+#else
+            const qreal percent = gestureZoom_ * (1 + gesture->value());
+#endif
+            if (qIsFinite(percent) && percent > 0)
+            {
+                const qreal bounded = qBound(qreal(25), percent, qreal(400));
+                setZoomPercent(qRound(bounded));
+#ifndef Q_OS_OPENHARMONY
+                gestureZoom_ = bounded;
+#endif
+            }
+            break;
+        }
+        case Qt::EndNativeGesture:
+            stopScrolling();
+            break;
+        default:
+            return QAbstractScrollArea::viewportEvent(event);
+        }
+        gesture->accept();
+        return true;
+    }
     if (type != QEvent::TouchBegin && type != QEvent::TouchUpdate && type != QEvent::TouchEnd &&
         type != QEvent::TouchCancel)
         return QAbstractScrollArea::viewportEvent(event);

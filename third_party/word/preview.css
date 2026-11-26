@@ -9,10 +9,20 @@ html, body, #word-body {
 #word-body .docx-editor-frame {
   --docx-editor-border: none;
   --docx-editor-radius: 0;
+  height: 100%;
 }
 
 #word-body .docx-editor-editor {
+  display: flex;
+  flex-direction: column;
+  touch-action: pan-x pan-y;
   background: #f5f7fb;
+}
+
+/* 短文档上下居中；长文档的自动外边距归零，保留完整可滚动范围。 */
+#word-body .docx-editor-page-box {
+  flex: 0 0 auto;
+  margin-block: auto;
 }
 
 .word-preview-error {

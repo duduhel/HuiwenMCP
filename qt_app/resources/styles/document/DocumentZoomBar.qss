@@ -1,0 +1,43 @@
+QWidget#documentZoomBar {
+    background: transparent;
+}
+
+QWidget#documentZoomBar QPushButton, QWidget#documentZoomBar QLabel {
+    color: #606060;
+    background: transparent;
+    border: none;
+    font-size: 18px;
+}
+
+QWidget#documentZoomBar QPushButton {
+    border-radius: 5px;
+    font-size: 24px;
+    padding: 0;
+}
+
+QWidget#documentZoomBar QPushButton:hover {
+    background: #e5e5e5;
+}
+
+QWidget#documentZoomBar QPushButton:disabled, QWidget#documentZoomBar QLabel:disabled {
+    color: #b8b8b8;
+}
+
+QWidget#documentZoomBar QSlider::groove:horizontal {
+    height: 6px;
+    border: none;
+    border-radius: 3px;
+    background: #adadad;
+}
+
+QWidget#documentZoomBar QSlider::handle:horizontal {
+    width: 24px;
+    margin: -9px 0;
+    border: 1px solid #e2e2e2;
+    border-radius: 12px;
+    background: white;
+}
+
+QWidget#documentZoomBar QSlider::groove:horizontal:disabled {
+    background: #d3d3d3;
+}

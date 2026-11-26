@@ -25,6 +25,14 @@ class DocumentRenderer
     virtual void publishScrollPosition() = 0;
     virtual DocumentScrollOwner scrollOwner() const = 0;
     virtual void setViewOptions(const DocumentViewOptions &options) = 0;
+    // 无纸张缩放的渲染器保持默认行为；比例以文档原始尺寸为 100%。
+    virtual void setZoomPercent(int)
+    {
+    }
+    virtual int zoomPercent() const
+    {
+        return 100;
+    }
     // 实现类同时是 QWidget，并提供 documentOpened、previewReadyChanged、scrollPositionChanged
     // 信号。
 };

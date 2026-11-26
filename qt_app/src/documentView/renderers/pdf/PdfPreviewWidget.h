@@ -30,6 +30,8 @@ class PdfPreviewWidget : public RasterDocumentViewport
     bool isPreviewReady() const override;
     void setScrollPosition(int page, double fraction, double progress) override;
     void publishScrollPosition() override;
+    void setZoomPercent(int percent) override;
+    int zoomPercent() const override;
 
   protected:
     void resizeEvent(QResizeEvent *event) override;
@@ -51,6 +53,9 @@ class PdfPreviewWidget : public RasterDocumentViewport
     bool taskPending_ = false;
     bool applyingScroll_ = false;
     int renderPixelBudget_ = 1;
+    qreal zoom_ = 0; // 0 为初始适应宽度，手动缩放后保持所选比例。
+    qreal effectiveZoom_ = 1;
+    QSize layoutViewportSize_;
     std::shared_ptr<PdfPreviewDocument> document_;
     QVector<QSizeF> pageSizes_;
     QVector<QRectF> pageRects_;

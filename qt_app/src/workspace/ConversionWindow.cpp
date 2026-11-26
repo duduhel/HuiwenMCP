@@ -8,6 +8,7 @@
 #include "components/window/WorkspaceTitleBar.h"
 #include "components/window/menus/FileMenu.h"
 #include "components/window/menus/ModeMenu.h"
+#include "components/zoom/DocumentZoomBar.h"
 #include "dialogs/ExportOutputDialog.h"
 #include "dialogs/ModeSwitchDialog.h"
 #include "documentView/DocumentView.h"
@@ -31,6 +32,8 @@
 #endif
 #include <QFile>
 #include <QFileInfo>
+#include <QFontMetrics>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QPaintEvent>
 #include <QPainter>
@@ -46,12 +49,31 @@
 #include <exception>
 #include <stdexcept>
 
+namespace
+{
+// 日志仍使用 QLabel 的文本及信号接口，仅在绘制时省略超出底栏的部分。
+class StatusLabel final : public QLabel
+{
+  public:
+    using QLabel::QLabel;
+
+  protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.setPen(palette().color(QPalette::WindowText));
+        painter.drawText(contentsRect(), Qt::AlignLeft | Qt::AlignVCenter,
+                         fontMetrics().elidedText(text(), Qt::ElideRight, contentsRect().width()));
+    }
+};
+} // namespace
+
 ConversionWindow::ConversionWindow(const QString &mode, const QString &kind, QWidget *parent)
     : QWidget(parent), taskMode_(mode), taskKind_(kind), mode_(mode), kind_(kind),
       splitter_(new WorkspaceSplitter(this)), bodySplitter_(new WorkspaceSplitter(this)),
       navigationSidebar_(new NavigationSidebar(this)), functionBar_(new FunctionBar(this)),
       conversion_(new ConversionService(this)), sandbox_(new SandboxService(this)),
-      status_(new QLabel(this))
+      status_(new StatusLabel(this)), zoomBar_(new DocumentZoomBar(this))
 {
     // 预览、编辑和转化统一使用 WorkspaceTitleBar，不再混用系统标题栏。
     setWindowFlag(Qt::FramelessWindowHint);
@@ -100,9 +122,23 @@ ConversionWindow::ConversionWindow(const QString &mode, const QString &kind, QWi
     layout->addWidget(bodySplitter_, 1);
     status_->setContentsMargins(16, 4, 16, 4);
     status_->setMinimumHeight(28);
-    status_->setWordWrap(true);
-    status_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    layout->addWidget(status_);
+    status_->setMinimumWidth(0);
+    status_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
+    auto *bottom = new QWidget(this);
+    bottom->setPalette(colors);
+    bottom->setAutoFillBackground(true);
+    auto *bottomLayout = new QHBoxLayout(bottom);
+    bottomLayout->setContentsMargins(0, 0, 16, 0);
+    bottomLayout->setSpacing(12);
+    bottomLayout->addWidget(status_, 1);
+    bottomLayout->addWidget(zoomBar_);
+    layout->addWidget(bottom);
+    connect(zoomBar_, &DocumentZoomBar::percentRequested, this,
+            [this](int percent)
+            {
+                if (source_)
+                    source_->setZoomPercent(percent);
+            });
     connect(functionBar_, &FunctionBar::navigationSidebarToggled, this,
             &ConversionWindow::toggleNavigationSidebar);
     connect(functionBar_, &FunctionBar::exportRequested, this, &ConversionWindow::exportOutput);
@@ -312,8 +348,10 @@ void ConversionWindow::createDocumentViews(bool preview)
         refreshScrollSync();
         placeConvertButton();
         updateEditState();
+        refreshZoomBar();
     };
     connect(source_, &DocumentView::previewReadyChanged, this, refreshPreview);
+    connect(source_, &DocumentView::zoomPercentChanged, zoomBar_, &DocumentZoomBar::setPercent);
     connect(source_, &DocumentView::cardActivated, this, &ConversionWindow::selectDocument);
     connect(source_, &DocumentView::documentOpened, this,
             [this] { sandbox_->markUsed(document_); });
@@ -357,6 +395,7 @@ void ConversionWindow::createDocumentViews(bool preview)
         result_->show();
     setWindowTitle(QStringLiteral("汇文 MCP"));
     titleActions_->fileMenu()->setPreviewMode(preview);
+    refreshZoomBar();
 }
 
 void ConversionWindow::switchMode(const QString &mode)
@@ -633,6 +672,19 @@ void ConversionWindow::refreshBusyState()
         button_->setState(!document_.inputPath.isEmpty(), busy, retry_);
     placeConvertButton();
     updateEditState();
+    refreshZoomBar();
+}
+
+void ConversionWindow::refreshZoomBar()
+{
+    const bool supported = kind_ == "pdf" || kind_ == "word";
+    zoomBar_->setVisible(supported);
+    zoomBar_->setMaximumPercent(kind_ == "word" ? 200 : 400);
+    zoomBar_->setEnabled(supported && source_ && source_->isPreviewReady() && !picking_ &&
+                         !exporting_ && !converting_ && !switching_ && !pendingSnapshot_ &&
+                         !closeApproved_);
+    if (supported && source_)
+        zoomBar_->setPercent(source_->zoomPercent());
 }
 
 void ConversionWindow::exportOutput()

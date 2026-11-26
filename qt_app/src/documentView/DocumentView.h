@@ -18,6 +18,7 @@ class DocumentView : public QStackedWidget
         connect(renderer, &Renderer::previewReadyChanged, this, &DocumentView::previewReadyChanged);
         connect(renderer, &Renderer::scrollPositionChanged, this,
                 &DocumentView::scrollPositionChanged);
+        connect(renderer, &Renderer::zoomPercentChanged, this, &DocumentView::zoomPercentChanged);
         connect(renderer, &Renderer::documentOpened, this,
                 [this](const QString &path)
                 {
@@ -36,12 +37,21 @@ class DocumentView : public QStackedWidget
     void publishScrollPosition();
     DocumentScrollOwner scrollOwner() const { return renderer_->scrollOwner(); }
     void setViewOptions(const DocumentViewOptions &options);
+    void setZoomPercent(int percent)
+    {
+        renderer_->setZoomPercent(percent);
+    }
+    int zoomPercent() const
+    {
+        return renderer_->zoomPercent();
+    }
 
   signals:
     void cardActivated(const QString &path);
     void documentOpened();
     void previewReadyChanged(bool ready);
     void scrollPositionChanged(int page, double fraction, double progress);
+    void zoomPercentChanged(int percent);
 
   private:
     DocumentView(QWidget *rendererWidget, DocumentRenderer *renderer, const QString &emptyPrompt,
