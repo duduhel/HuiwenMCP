@@ -15,6 +15,8 @@ class DocumentZoomBar : public QWidget
     void setMaximumPercent(int percent);
 
   signals:
+    void zoomStarted();
+    void zoomFinished();
     void percentRequested(int percent);
 
   private:

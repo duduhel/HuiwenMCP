@@ -37,6 +37,14 @@ class DocumentView : public QStackedWidget
     void publishScrollPosition();
     DocumentScrollOwner scrollOwner() const { return renderer_->scrollOwner(); }
     void setViewOptions(const DocumentViewOptions &options);
+    void beginZoom(const QPointF &position)
+    {
+        renderer_->beginZoom(position);
+    }
+    void endZoom()
+    {
+        renderer_->endZoom();
+    }
     void setZoomPercent(int percent)
     {
         renderer_->setZoomPercent(percent);

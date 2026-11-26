@@ -1,6 +1,7 @@
 /* MD 与 DOCX 共用 CEF 生命周期、原生窗口定位和只读页面通信。 */
 #include "CefDocumentPreviewWidget.h"
 #include <QApplication>
+#include <QCursor>
 #include <QDebug>
 #include <QDir>
 #include <QElapsedTimer>
@@ -389,13 +390,29 @@ class PreviewClient final : public CefClient,
             "window.huiwenReportScroll(position.page, position.fraction, position.progress); })();",
             url_.toStdString(), 0);
     }
-    void setZoomPercent(int percent)
+    void runWordScript(const QString &script)
     {
         if (!browser_ || !loaded_ || closing_ ||
             !url_.startsWith(QStringLiteral("data:text/html;base64,")))
             return;
-        const auto script = QStringLiteral("window.HuiwenPreview.setZoomPercent(%1);").arg(percent);
         browser_->GetMainFrame()->ExecuteJavaScript(script.toStdString(), url_.toStdString(), 0);
+    }
+    void setZoomPercent(int percent, const QPointF &position)
+    {
+        runWordScript(QStringLiteral("window.HuiwenPreview.setZoomPercent(%1,%2,%3);")
+                          .arg(percent)
+                          .arg(position.x(), 0, 'g', 16)
+                          .arg(position.y(), 0, 'g', 16));
+    }
+    void beginZoom(const QPointF &position)
+    {
+        runWordScript(QStringLiteral("window.HuiwenPreview.beginZoom(%1,%2);")
+                          .arg(position.x(), 0, 'g', 16)
+                          .arg(position.y(), 0, 'g', 16));
+    }
+    void endZoom()
+    {
+        runWordScript(QStringLiteral("window.HuiwenPreview.endZoom();"));
     }
     void setScrollBarVisible(bool visible)
     {
@@ -990,14 +1007,45 @@ int CefDocumentPreviewWidget::zoomPercent() const
     return d_->zoomPercent;
 }
 
+void CefDocumentPreviewWidget::beginZoom(const QPointF &position)
+{
+    if (d_->format != Format::Word || !isPreviewReady())
+        return;
+#ifdef Q_OS_OPENHARMONY
+    const QPoint local = mapFromGlobal(position.toPoint());
+    const QPointF relative(local.x() / qreal(qMax(1, width())),
+                           local.y() / qreal(qMax(1, height())));
+    const auto client = d_->client;
+    if (client)
+        postCef([client, relative] { client->beginZoom(relative); });
+#else
+    Q_UNUSED(position);
+#endif
+}
+
+void CefDocumentPreviewWidget::endZoom()
+{
+    if (d_->format != Format::Word)
+        return;
+#ifdef Q_OS_OPENHARMONY
+    const auto client = d_->client;
+    if (client)
+        postCef([client] { client->endZoom(); });
+#endif
+}
+
 void CefDocumentPreviewWidget::setZoomPercent(int percent)
 {
     if (d_->format != Format::Word || !isPreviewReady())
         return;
 #ifdef Q_OS_OPENHARMONY
+    const QPoint local = mapFromGlobal(QCursor::pos());
+    const QPointF relative(local.x() / qreal(qMax(1, width())),
+                           local.y() / qreal(qMax(1, height())));
     const auto client = d_->client;
     if (client)
-        postCef([client, percent] { client->setZoomPercent(qBound(25, percent, 400)); });
+        postCef([client, percent, relative]
+                { client->setZoomPercent(qBound(25, percent, 400), relative); });
 #else
     Q_UNUSED(percent);
 #endif
@@ -1054,6 +1102,7 @@ void CefDocumentPreviewWidget::showEvent(QShowEvent *event)
 
 void CefDocumentPreviewWidget::hideEvent(QHideEvent *event)
 {
+    endZoom();
     // 所有文档都保留原浏览器、DOM 和滚动位置；切换文档或关闭工作区才释放。
     updateVisibility(false);
     QWidget::hideEvent(event);

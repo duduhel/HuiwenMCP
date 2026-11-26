@@ -81,6 +81,10 @@ bool RasterDocumentViewport::viewportEvent(QEvent *event)
         case Qt::BeginNativeGesture:
             stopScrolling();
             gestureZoom_ = zoomPercent();
+            beginZoom(hasTouchZoomCenter_ && gesture->device() &&
+                              gesture->device()->type() == QTouchDevice::TouchScreen
+                          ? touchZoomCenter_
+                          : gesture->screenPos());
             break;
         case Qt::ZoomNativeGesture:
         {
@@ -103,6 +107,7 @@ bool RasterDocumentViewport::viewportEvent(QEvent *event)
         }
         case Qt::EndNativeGesture:
             stopScrolling();
+            endZoom();
             break;
         default:
             return QAbstractScrollArea::viewportEvent(event);
@@ -119,6 +124,11 @@ bool RasterDocumentViewport::viewportEvent(QEvent *event)
                         : type != QEvent::TouchCancel)
         return QAbstractScrollArea::viewportEvent(event);
 
+    hasTouchZoomCenter_ =
+        type != QEvent::TouchEnd && type != QEvent::TouchCancel && touch->touchPoints().size() == 2;
+    if (hasTouchZoomCenter_)
+        touchZoomCenter_ =
+            (touch->touchPoints()[0].screenPos() + touch->touchPoints()[1].screenPos()) / 2;
     if (type == QEvent::TouchCancel || !isPreviewReady() || touch->touchPoints().size() != 1)
         stopScrolling();
     else
@@ -154,6 +164,8 @@ void RasterDocumentViewport::wheelEvent(QWheelEvent *event)
 void RasterDocumentViewport::hideEvent(QHideEvent *event)
 {
     stopScrolling();
+    hasTouchZoomCenter_ = false;
+    endZoom();
     QAbstractScrollArea::hideEvent(event);
 }
 

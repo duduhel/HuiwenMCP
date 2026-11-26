@@ -33,6 +33,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QFontMetrics>
+#include <QCursor>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPaintEvent>
@@ -133,6 +134,18 @@ ConversionWindow::ConversionWindow(const QString &mode, const QString &kind, QWi
     bottomLayout->addWidget(status_, 1);
     bottomLayout->addWidget(zoomBar_);
     layout->addWidget(bottom);
+    connect(zoomBar_, &DocumentZoomBar::zoomStarted, this,
+            [this]
+            {
+                if (source_)
+                    source_->beginZoom(QCursor::pos());
+            });
+    connect(zoomBar_, &DocumentZoomBar::zoomFinished, this,
+            [this]
+            {
+                if (source_)
+                    source_->endZoom();
+            });
     connect(zoomBar_, &DocumentZoomBar::percentRequested, this,
             [this](int percent)
             {

@@ -27,6 +27,8 @@ class CefDocumentPreviewWidget : public QWidget, public DocumentRenderer
     void setViewOptions(const DocumentViewOptions &options) override;
     void setZoomPercent(int percent) override;
     int zoomPercent() const override;
+    void beginZoom(const QPointF &position) override;
+    void endZoom() override;
     void sendMarkdownMessage(const QJsonObject &message);
     // 工作区重建布局后同步绝对位置；浏览器生命周期仍由本组件管理。
     void syncGeometry();

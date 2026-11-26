@@ -1,6 +1,7 @@
 /* 文档渲染契约：与 PDF、Markdown、Word 及输入输出角色无关，不新增可视容器。 */
 #pragma once
 #include <QString>
+#include <QPointF>
 
 enum class DocumentScrollOwner
 {
@@ -25,6 +26,13 @@ class DocumentRenderer
     virtual void publishScrollPosition() = 0;
     virtual DocumentScrollOwner scrollOwner() const = 0;
     virtual void setViewOptions(const DocumentViewOptions &options) = 0;
+    // 连续缩放期间固定页内锚点；位置为 Qt 全局逻辑坐标。
+    virtual void beginZoom(const QPointF &)
+    {
+    }
+    virtual void endZoom()
+    {
+    }
     // 无纸张缩放的渲染器保持默认行为；比例以文档原始尺寸为 100%。
     virtual void setZoomPercent(int)
     {

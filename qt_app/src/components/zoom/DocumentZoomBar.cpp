@@ -32,6 +32,8 @@ DocumentZoomBar::DocumentZoomBar(QWidget *parent)
     layout->addWidget(slider_);
     layout->addWidget(increase_);
     layout->addWidget(percentage_);
+    connect(slider_, &QSlider::sliderPressed, this, &DocumentZoomBar::zoomStarted);
+    connect(slider_, &QSlider::sliderReleased, this, &DocumentZoomBar::zoomFinished);
     connect(slider_, &QSlider::valueChanged, this,
             [this](int percent)
             {

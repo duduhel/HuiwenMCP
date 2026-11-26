@@ -37,4 +37,6 @@ class RasterDocumentViewport : public QAbstractScrollArea, public DocumentRender
     QScroller *touchScroller_;
     bool touchInertiaEnabled_ = true;
     qreal gestureZoom_ = 100;
+    QPointF touchZoomCenter_;
+    bool hasTouchZoomCenter_ = false;
 };
