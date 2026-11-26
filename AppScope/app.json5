@@ -2,8 +2,8 @@
   "app": {
     "bundleName": "cn.com.huiwenmcp",
     "vendor": "example",
-    "versionCode": 1000000,
-    "versionName": "1.0.0",
+    "versionCode": 1000001,
+    "versionName": "1.0.1",
     "buildVersion": "1",
     // 应用图标使用汇文最终版 PNG，保留原图透明圆角。
     "icon": "$media:app_icon",

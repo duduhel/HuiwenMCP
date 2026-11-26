@@ -39,7 +39,7 @@
         "type": "private"
       }
     ],
-    // 首页与文档工作区使用应用图标；截图宿主使用透明启动页。
+    // 桌面入口使用分层图标；工作区及启动页继续使用原应用图标。
     "abilities": [
       {
         "name": "QtScreenshotAbility",
@@ -70,7 +70,7 @@
         "srcEntry": "./ets/entryability/EntryAbility.ets",
         "launchType": "singleton",
         "description": "$string:EntryAbility_desc",
-        "icon": "$media:app_icon",
+        "icon": "$media:launcher_icon",
         "label": "$string:EntryAbility_label",
         "startWindowIcon": "$media:app_icon",
         "startWindowBackground": "$color:start_window_background",
